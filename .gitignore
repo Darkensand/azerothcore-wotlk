@@ -2,28 +2,30 @@
 # AzerothCore
 #
 
-conf/*
-!conf/*.dist
-apps/drassil/*
-env/dist/*
-env/user/*
-modules/*
-!modules/*.md
-!modules/*.sh
-build*/
-var/*
-docker/build/cache
-docker/authserver/bin
-docker/worldserver/bin
-docker/authserver/etc/authserver.conf
-docker/authserver/etc/authserver.conf.dist
-docker/worldserver/etc/worldserver.conf
-docker/worldserver/etc/worldserver.conf.dist
-docker/authserver/logs/
-docker/worldserver/logs/
-docker/worldserver/data/
-!docker/build
-.env
+/conf/*
+!/conf/dist
+/modules/*
+!/modules/*.md
+!/modules/*.sh
+!/modules/CMakeLists.txt
+!/modules/*.h
+!/modules/*.cmake
+/build*/
+/var/*
+!/var/build/.gitkeep
+!/var/ccache/.gitkeep
+/env/dist/*
+!/env/dist/.gitkeep
+/env/user/*
+/.env*
+/apps/joiner
+/deps/deno
+/data/sql/custom/*
+/src/server/scripts/Custom/*
+!/src/server/scripts/Custom/README.md
+
+/*.override.yml
+/*.override.yaml
 
 !.gitkeep
 
@@ -58,9 +60,9 @@ nbproject/
 .sync.ffs_db
 *.kate-swp
 .browse.VC*
-.vscode
 .idea
-cmake-build-debug/*
+cmake-build-*/*
+coverage-report/
 
 #
 # Eclipse
@@ -82,12 +84,11 @@ local.properties
 # ==================
 #
 #  CUSTOM
-#  
+#
 #  put below your custom ignore rules
-#  for example , if you want to include a 
+#  for example , if you want to include a
 #  module directly in repositoryyou can do:
 #
 #  !modules/yourmodule
 #
 # ==================
-

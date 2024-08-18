@@ -1,11 +1,24 @@
 /*
- * Originally written by Xinef - Copyright (C) 2016+ AzerothCore <www.azerothcore.org>, released under GNU AGPL v3 license: https://github.com/azerothcore/azerothcore-wotlk/blob/master/LICENSE-AGPL3
-*/
+ * This file is part of the AzerothCore Project. See AUTHORS file for Copyright information
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License as published by the
+ * Free Software Foundation; either version 3 of the License, or (at your
+ * option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
 
-#include "ScriptMgr.h"
+#include "CreatureScript.h"
 #include "ScriptedCreature.h"
-#include "halls_of_lightning.h"
 #include "ScriptedEscortAI.h"
+#include "halls_of_lightning.h"
 
 enum BjarngrimSpells
 {
@@ -22,7 +35,7 @@ enum BjarngrimSpells
     SPELL_BERSERKER_AURA                = 41107,
     SPELL_MORTAL_STRIKE                 = 16856,
     SPELL_WHIRLWIND                     = 52027,
-    
+
     // BATTLE STANCE
     SPELL_BATTLE_STANCE                 = 53792,
     SPELL_BATTLE_AURA                   = 41106,
@@ -98,9 +111,9 @@ class boss_bjarngrim : public CreatureScript
 public:
     boss_bjarngrim() : CreatureScript("boss_bjarngrim") { }
 
-    CreatureAI* GetAI(Creature* creature) const
+    CreatureAI* GetAI(Creature* creature) const override
     {
-        return new boss_bjarngrimAI (creature);
+        return GetHallsOfLightningAI<boss_bjarngrimAI>(creature);
     }
 
     struct boss_bjarngrimAI : public npc_escortAI
@@ -124,8 +137,8 @@ public:
             AddWaypoint(12, 1311.3f, -26.9f, 40.03f, 0);
             AddWaypoint(13, 1281.2f, -26.8f, 33.5f, 0);
             AddWaypoint(14, 1262, -26.9f, 33.5f, 0);
-            
-            Start(true, false, 0, NULL, false, true);
+
+            Start(true, false, ObjectGuid::Empty, nullptr, false, true);
         }
 
         InstanceScript* m_pInstance;
@@ -133,15 +146,15 @@ public:
         SummonList summons;
         uint8 m_uiStance;
 
-        void Reset()
+        void Reset() override
         {
             events.Reset();
             summons.DespawnAll();
 
             for (uint8 i = 0; i < 2; ++i)
-                if (Creature* dwarf = me->SummonCreature(NPC_STORMFORGED_LIEUTENANT, me->GetPositionX()+urand(4,12), me->GetPositionY()+urand(4,12), me->GetPositionZ()))
+                if (Creature* dwarf = me->SummonCreature(NPC_STORMFORGED_LIEUTENANT, me->GetPositionX() + urand(4, 12), me->GetPositionY() + urand(4, 12), me->GetPositionZ()))
                 {
-                    dwarf->GetMotionMaster()->MoveFollow(me, 3, rand_norm()*2*3.14f);
+                    dwarf->GetMotionMaster()->MoveFollow(me, 3, rand_norm() * 2 * 3.14f);
                     summons.Summon(dwarf);
                 }
 
@@ -153,27 +166,27 @@ public:
                 m_pInstance->SetData(TYPE_BJARNGRIM, NOT_STARTED);
         }
 
-        void EnterCombat(Unit*)
+        void JustEngagedWith(Unit*) override
         {
             me->SetInCombatWithZone();
             Talk(SAY_AGGRO);
 
-            events.ScheduleEvent(EVENT_BJARNGRIM_CHANGE_STANCE, 20000, 0);
+            events.ScheduleEvent(EVENT_BJARNGRIM_CHANGE_STANCE, 20s, 0);
 
             // DEFENSIVE STANCE
-            events.ScheduleEvent(EVENT_BJARNGRIM_REFLECTION, 8000, STANCE_DEFENSIVE);
-            events.ScheduleEvent(EVENT_BJARNGRIM_PUMMEL, 5000, STANCE_DEFENSIVE);
-            events.ScheduleEvent(EVENT_BJARNGRIM_KNOCK, 16000, STANCE_DEFENSIVE);
-            events.ScheduleEvent(EVENT_BJARNGRIM_IRONFORM, 12000, STANCE_DEFENSIVE);
+            events.ScheduleEvent(EVENT_BJARNGRIM_REFLECTION, 8s, STANCE_DEFENSIVE);
+            events.ScheduleEvent(EVENT_BJARNGRIM_PUMMEL, 5s, STANCE_DEFENSIVE);
+            events.ScheduleEvent(EVENT_BJARNGRIM_KNOCK, 16s, STANCE_DEFENSIVE);
+            events.ScheduleEvent(EVENT_BJARNGRIM_IRONFORM, 12s, STANCE_DEFENSIVE);
 
             // BERSERKER STANCE
-            events.ScheduleEvent(EVENT_BJARNGRIM_MORTAL_STRIKE, 20000+4000, STANCE_BERSERKER);
-            events.ScheduleEvent(EVENT_BJARNGRIM_WHIRLWIND, 20000+6000, STANCE_BERSERKER);
+            events.ScheduleEvent(EVENT_BJARNGRIM_MORTAL_STRIKE, 24s, STANCE_BERSERKER);
+            events.ScheduleEvent(EVENT_BJARNGRIM_WHIRLWIND, 26s, STANCE_BERSERKER);
 
             // BATTLE STANCE
-            events.ScheduleEvent(EVENT_BJARNGRIM_INTERCEPT, 20000+3000, STANCE_BATTLE);
-            events.ScheduleEvent(EVENT_BJARNGRIM_CLEAVE, 20000+5000, STANCE_BATTLE);
-            events.ScheduleEvent(EVENT_BJARNGRIM_SLAM, 20000+10000, STANCE_BATTLE);
+            events.ScheduleEvent(EVENT_BJARNGRIM_INTERCEPT, 23s, STANCE_BATTLE);
+            events.ScheduleEvent(EVENT_BJARNGRIM_CLEAVE, 25s, STANCE_BATTLE);
+            events.ScheduleEvent(EVENT_BJARNGRIM_SLAM, 30s, STANCE_BATTLE);
 
             if (m_pInstance)
             {
@@ -182,7 +195,7 @@ public:
             }
         }
 
-        void KilledUnit(Unit* victim)
+        void KilledUnit(Unit* victim) override
         {
             if (victim->GetTypeId() != TYPEID_PLAYER)
                 return;
@@ -190,7 +203,7 @@ public:
             Talk(SAY_SLAY);
         }
 
-        void JustDied(Unit*)
+        void JustDied(Unit*) override
         {
             Talk(SAY_DEATH);
 
@@ -219,14 +232,14 @@ public:
 
         void RollStance(uint8 stance, uint8 force = 0)
         {
-            if (urand(0,1))
+            if (urand(0, 1))
                 stance = (++stance == 4 ? 1 : stance);
             else
                 stance = (--stance == 0 ? 3 : stance);
 
             if (force)
                 stance = force;
-            
+
             switch (stance)
             {
                 case STANCE_DEFENSIVE:
@@ -267,7 +280,7 @@ public:
             m_uiStance = stance;
         }
 
-        void WaypointReached(uint32 Point)
+        void WaypointReached(uint32 Point) override
         {
             if (Point == 1 || Point == 8)
                 me->CastSpell(me, SPELL_TEMPORARY_ELECTRICAL_CHARGE, true);
@@ -275,7 +288,7 @@ public:
                 me->RemoveAura(SPELL_TEMPORARY_ELECTRICAL_CHARGE);
         }
 
-        void UpdateEscortAI(uint32 diff)
+        void UpdateEscortAI(uint32 diff) override
         {
             if (!me->IsInCombat())
                 return;
@@ -292,13 +305,13 @@ public:
             if (me->HasUnitState(UNIT_STATE_CASTING))
                 return;
 
-            switch (events.GetEvent())
+            switch (events.ExecuteEvent())
             {
                 case EVENT_BJARNGRIM_CHANGE_STANCE:
                     // roll new stance
                     RemoveStanceAura(m_uiStance);
                     RollStance(m_uiStance);
-                    events.RepeatEvent(20000);
+                    events.Repeat(20s);
                     break;
 
                 ///////////////////////////////////////////////////////
@@ -306,19 +319,19 @@ public:
                 ///////////////////////////////////////////////////////
                 case EVENT_BJARNGRIM_REFLECTION:
                     me->CastSpell(me, SPELL_BJARNGRIM_REFLETION, true);
-                    events.RepeatEvent(8000 + rand()%1000);
+                    events.Repeat(8s, 9s);
                     break;
                 case EVENT_BJARNGRIM_PUMMEL:
                     me->CastSpell(me->GetVictim(), SPELL_PUMMEL, false);
-                    events.RepeatEvent(10000 + rand()%1000);
+                    events.Repeat(10s, 11s);
                     break;
                 case EVENT_BJARNGRIM_KNOCK:
                     me->CastSpell(me, SPELL_KNOCK_AWAY, false);
-                    events.RepeatEvent(20000 + rand()%1000);
+                    events.Repeat(20s, 21s);
                     break;
                 case EVENT_BJARNGRIM_IRONFORM:
                     me->CastSpell(me, SPELL_IRONFORM, true);
-                    events.RepeatEvent(18000 + rand()%5000);
+                    events.Repeat(18s, 23s);
                     break;
 
                 ///////////////////////////////////////////////////////
@@ -326,29 +339,29 @@ public:
                 ///////////////////////////////////////////////////////
                 case EVENT_BJARNGRIM_MORTAL_STRIKE:
                     me->CastSpell(me->GetVictim(), SPELL_MORTAL_STRIKE, false);
-                    events.RepeatEvent(10000);
+                    events.Repeat(10s);
                     break;
                 case EVENT_BJARNGRIM_WHIRLWIND:
                     me->CastSpell(me, SPELL_WHIRLWIND, true);
-                    events.RepeatEvent(25000);
+                    events.Repeat(25s);
                     break;
-                    
+
                 ///////////////////////////////////////////////////////
                 ///// BATTLE STANCE
                 ///////////////////////////////////////////////////////
                 case EVENT_BJARNGRIM_INTERCEPT:
-                    if (Unit* target = SelectTarget(SELECT_TARGET_RANDOM))
+                    if (Unit* target = SelectTarget(SelectTargetMethod::Random))
                         me->CastSpell(target, SPELL_INTERCEPT, true);
 
-                    events.RepeatEvent(30000);
+                    events.Repeat(30s);
                     break;
                 case EVENT_BJARNGRIM_CLEAVE:
                     me->CastSpell(me->GetVictim(), SPELL_CLEAVE, false);
-                    events.RepeatEvent(25000);
+                    events.Repeat(25s);
                     break;
                 case EVENT_BJARNGRIM_SLAM:
                     me->CastSpell(me->GetVictim(), SPELL_SLAM, false);
-                    events.RepeatEvent(10000 + rand()%2000);
+                    events.Repeat(10s, 12s);
                     break;
             }
 
@@ -362,9 +375,9 @@ class npc_stormforged_lieutenant : public CreatureScript
 public:
     npc_stormforged_lieutenant() : CreatureScript("npc_stormforged_lieutenant") { }
 
-    CreatureAI* GetAI(Creature* creature) const
+    CreatureAI* GetAI(Creature* creature) const override
     {
-        return new npc_stormforged_lieutenantAI (creature);
+        return GetHallsOfLightningAI<npc_stormforged_lieutenantAI>(creature);
     }
 
     struct npc_stormforged_lieutenantAI : public ScriptedAI
@@ -372,23 +385,23 @@ public:
         npc_stormforged_lieutenantAI(Creature* creature) : ScriptedAI(creature) { }
 
         EventMap events;
-        uint64 BjarngrimGUID;
+        ObjectGuid BjarngrimGUID;
 
-        void Reset()
+        void Reset() override
         {
             if (me->IsSummon())
                 BjarngrimGUID = me->ToTempSummon()->GetSummonerGUID();
             else
-                BjarngrimGUID = 0;
+                BjarngrimGUID.Clear();
         }
 
-        void EnterCombat(Unit*)
+        void JustEngagedWith(Unit*) override
         {
-            events.ScheduleEvent(EVENT_ARC_WELD, 2000);
-            events.ScheduleEvent(EVENT_RENEW_STEEL, 10000 + rand()%1000);
+            events.ScheduleEvent(EVENT_ARC_WELD, 2s);
+            events.ScheduleEvent(EVENT_RENEW_STEEL, 10s, 11s);
         }
 
-        void UpdateAI(uint32 diff)
+        void UpdateAI(uint32 diff) override
         {
             //Return since we have no target
             if (!UpdateVictim())
@@ -399,18 +412,18 @@ public:
             if (me->HasUnitState(UNIT_STATE_CASTING))
                 return;
 
-            switch (events.GetEvent())
+            switch (events.ExecuteEvent())
             {
                 case EVENT_ARC_WELD:
                     me->CastSpell(me->GetVictim(), SPELL_ARC_WELD, true);
-                    events.RepeatEvent(20000);
+                    events.Repeat(20s);
                     break;
                 case EVENT_RENEW_STEEL:
                     if (Creature* bjarngrim = ObjectAccessor::GetCreature(*me, BjarngrimGUID))
                         if (bjarngrim->IsAlive())
                             me->CastSpell(bjarngrim, me->GetMap()->IsHeroic() ? SPELL_RENEW_STEEL_H : SPELL_RENEW_STEEL_N, true);
 
-                    events.RepeatEvent(10000 + rand()%4000);
+                    events.Repeat(10s, 14s);
                     break;
             }
 
@@ -418,7 +431,6 @@ public:
         }
     };
 };
-
 
 void AddSC_boss_bjarngrim()
 {

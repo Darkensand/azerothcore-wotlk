@@ -1,16 +1,31 @@
 /*
- * Originally written by Xinef - Copyright (C) 2016+ AzerothCore <www.azerothcore.org>, released under GNU AGPL v3 license: https://github.com/azerothcore/azerothcore-wotlk/blob/master/LICENSE-AGPL3
-*/
+ * This file is part of the AzerothCore Project. See AUTHORS file for Copyright information
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License as published by the
+ * Free Software Foundation; either version 3 of the License, or (at your
+ * option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
 
-#include "ScriptMgr.h"
+#include "CreatureScript.h"
 #include "ScriptedCreature.h"
+#include "SpellScriptLoader.h"
 #include "serpent_shrine.h"
+#include "SpellScript.h"
 
 enum Yells
 {
     SAY_AGGRO                       = 0,
     SAY_SUMMON                      = 1,
-    SAY_SUMMON_BUBLE                = 2,
+    SAY_SUMMON_BUBBLE               = 2,
     SAY_SLAY                        = 3,
     SAY_DEATH                       = 4,
     EMOTE_WATERY_GRAVE              = 5,
@@ -34,205 +49,177 @@ enum Spells
     SPELL_SUMMON_WATER_GLOBULE_4    = 37861
 };
 
-enum Misc
+const uint32 wateryGraveIds[4] = {SPELL_WATERY_GRAVE_1, SPELL_WATERY_GRAVE_2, SPELL_WATERY_GRAVE_3, SPELL_WATERY_GRAVE_4};
+const uint32 waterGlobuleIds[4] = {SPELL_SUMMON_WATER_GLOBULE_1, SPELL_SUMMON_WATER_GLOBULE_2, SPELL_SUMMON_WATER_GLOBULE_3, SPELL_SUMMON_WATER_GLOBULE_4};
+
+struct boss_morogrim_tidewalker : public BossAI
 {
-    // Creatures
-    NPC_WATER_GLOBULE               = 21913,
-    NPC_TIDEWALKER_LURKER           = 21920,
-
-    EVENT_SPELL_TIDAL_WAVE          = 1,
-    EVENT_SPELL_WATERY_GRAVE        = 2,
-    EVENT_SPELL_EARTHQUAKE          = 3,
-    EVENT_SUMMON_MURLOCS            = 4,
-    EVENT_KILL_TALK                 = 5
-
-};
-
-const uint32 wateryGraveId[4] = {SPELL_WATERY_GRAVE_1, SPELL_WATERY_GRAVE_2, SPELL_WATERY_GRAVE_3, SPELL_WATERY_GRAVE_4};
-const uint32 waterGlobuleId[4] = {SPELL_SUMMON_WATER_GLOBULE_1, SPELL_SUMMON_WATER_GLOBULE_2, SPELL_SUMMON_WATER_GLOBULE_3, SPELL_SUMMON_WATER_GLOBULE_4};
-
-class boss_morogrim_tidewalker : public CreatureScript
-{
-    public:
-        boss_morogrim_tidewalker() : CreatureScript("boss_morogrim_tidewalker") { }
-
-        CreatureAI* GetAI(Creature* creature) const
+    boss_morogrim_tidewalker(Creature* creature) : BossAI(creature, DATA_MOROGRIM_TIDEWALKER)
+    {
+        scheduler.SetValidator([this]
         {
-            return GetInstanceAI<boss_morogrim_tidewalkerAI>(creature);
+            return !me->HasUnitState(UNIT_STATE_CASTING);
+        });
+    }
+
+    void Reset() override
+    {
+        BossAI::Reset();
+        _recentlySpoken = false;
+    }
+
+    void KilledUnit(Unit*) override
+    {
+        if (!_recentlySpoken)
+        {
+            Talk(SAY_SLAY);
+            _recentlySpoken = true;
         }
 
-        struct boss_morogrim_tidewalkerAI : public BossAI
+        scheduler.Schedule(6s, [this](TaskContext)
         {
-            boss_morogrim_tidewalkerAI(Creature* creature) : BossAI(creature, DATA_MOROGRIM_TIDEWALKER)
-            {
-            }
+            _recentlySpoken = false;
+        });
+    }
 
-            void Reset()
-            {
-                BossAI::Reset();
-            }
+    void JustSummoned(Creature* summon) override
+    {
+        summons.Summon(summon);
+        summon->SetInCombatWithZone();
+    }
 
-            void KilledUnit(Unit*)
+    void JustDied(Unit* killer) override
+    {
+        Talk(SAY_DEATH);
+        BossAI::JustDied(killer);
+    }
+
+    void JustEngagedWith(Unit* who) override
+    {
+        BossAI::JustEngagedWith(who);
+        Talk(SAY_AGGRO);
+
+        scheduler.Schedule(10s, [this](TaskContext context)
+        {
+            DoCastVictim(SPELL_TIDAL_WAVE);
+            context.Repeat(20s);
+        }).Schedule(20s, [this](TaskContext context)
+        {
+            Talk(SAY_SUMMON_BUBBLE);
+            if (me->HealthAbovePct(25))
             {
-                if (events.GetNextEventTime(EVENT_KILL_TALK) == 0)
+                Talk(EMOTE_WATERY_GRAVE);
+                me->CastCustomSpell(SPELL_WATERY_GRAVE, SPELLVALUE_MAX_TARGETS, 4, me, false);
+            }
+            else
+            {
+                Talk(EMOTE_WATERY_GLOBULES);
+                for (uint32 waterGlobuleId : waterGlobuleIds)
                 {
-                    Talk(SAY_SLAY);
-                    events.ScheduleEvent(EVENT_KILL_TALK, 6000);
+                    DoCastSelf(waterGlobuleId, true);
                 }
             }
+            context.Repeat(25s);
+        }).Schedule(40s, [this](TaskContext context)
+        {
+            Talk(EMOTE_EARTHQUAKE);
 
-            void JustSummoned(Creature* summon)
+            DoCastSelf(SPELL_EARTHQUAKE);
+            scheduler.Schedule(8s, [this](TaskContext)
             {
-                summons.Summon(summon);
-                summon->SetInCombatWithZone();
-            }
-
-            void JustDied(Unit* killer)
-            {
-                Talk(SAY_DEATH);
-                BossAI::JustDied(killer);
-            }
-
-            void EnterCombat(Unit* who)
-            {
-                BossAI::EnterCombat(who);
-                Talk(SAY_AGGRO);
-
-                events.ScheduleEvent(EVENT_SPELL_TIDAL_WAVE, 10000);
-                events.ScheduleEvent(EVENT_SPELL_WATERY_GRAVE, 28000);
-                events.ScheduleEvent(EVENT_SPELL_EARTHQUAKE, 40000);
-            }
-
-            void UpdateAI(uint32 diff)
-            {
-                if (!UpdateVictim())
-                    return;
-
-                events.Update(diff);
-                if (me->HasUnitState(UNIT_STATE_CASTING))
-                    return;
-
-                switch (events.ExecuteEvent())
+                Talk(SAY_SUMMON);
+                for (uint32 murlocSpellId = SPELL_SUMMON_MURLOC1; murlocSpellId < SPELL_SUMMON_MURLOC1 + 11; ++murlocSpellId)
                 {
-                    case EVENT_SPELL_TIDAL_WAVE:
-                        me->CastSpell(me->GetVictim(), SPELL_TIDAL_WAVE, false);
-                        events.ScheduleEvent(EVENT_SPELL_TIDAL_WAVE, 20000);
-                        break;
-                    case EVENT_SPELL_WATERY_GRAVE:
-                        Talk(SAY_SUMMON_BUBLE);
-                        if (me->HealthAbovePct(25))
-                        {
-                            Talk(EMOTE_WATERY_GRAVE);
-                            me->CastCustomSpell(SPELL_WATERY_GRAVE, SPELLVALUE_MAX_TARGETS, 4, me, false);
-                        }
-                        else
-                        {
-                            Talk(EMOTE_WATERY_GLOBULES);
-                            for (uint8 i = 0; i < 4; ++i)
-                                me->CastSpell(me, waterGlobuleId[i], true);
-                        }
-                        events.ScheduleEvent(EVENT_SPELL_WATERY_GRAVE, 25000);
-                        break;
-                    case EVENT_SPELL_EARTHQUAKE:
-                        Talk(EMOTE_EARTHQUAKE);
-                        me->CastSpell(me, SPELL_EARTHQUAKE, false);
-                        events.ScheduleEvent(EVENT_SPELL_EARTHQUAKE, urand(45000, 60000));
-                        events.ScheduleEvent(EVENT_SUMMON_MURLOCS, 8000);
-                        break;
-                    case EVENT_SUMMON_MURLOCS:
-                        Talk(SAY_SUMMON);
-                        for (uint32 i = SPELL_SUMMON_MURLOC1; i < SPELL_SUMMON_MURLOC1+11; ++i)
-                            me->CastSpell(me, i, true);
-                        break;
+                    DoCastSelf(murlocSpellId, true);
                 }
-
-                DoMeleeAttackIfReady();
-            }
-        };
+            });
+            context.Repeat(45s, 60s);
+        });
+    }
+private:
+    bool _recentlySpoken;
 };
 
-class spell_morogrim_tidewalker_watery_grave : public SpellScriptLoader
+class spell_morogrim_tidewalker_watery_grave : public SpellScript
 {
-    public:
-        spell_morogrim_tidewalker_watery_grave() : SpellScriptLoader("spell_morogrim_tidewalker_watery_grave") { }
+    PrepareSpellScript(spell_morogrim_tidewalker_watery_grave);
 
-        class spell_morogrim_tidewalker_watery_grave_SpellScript : public SpellScript
+    bool Load() override
+    {
+        _targetNumber = 0;
+        return true;
+    }
+
+    void FilterTargets(std::list<WorldObject*>& targets)
+    {
+        uint8 maxSize = 4;
+        Unit* caster = GetCaster();
+
+        targets.remove_if([caster](WorldObject const* target) -> bool
+            {
+                // Should not target current victim.
+                return caster->GetVictim() == target;
+            });
+
+        if (targets.size() > maxSize)
         {
-            PrepareSpellScript(spell_morogrim_tidewalker_watery_grave_SpellScript);
-
-            bool Load()
-            {
-                targetNumber = 0;
-                return true;
-            }
-
-            void HandleDummy(SpellEffIndex effIndex)
-            {
-                PreventHitDefaultEffect(effIndex);
-                if (Unit* target = GetHitUnit())
-                    if (targetNumber < 4)
-                        GetCaster()->CastSpell(target, wateryGraveId[targetNumber++], true);
-            }
-
-            void Register()
-            {
-                OnEffectHitTarget += SpellEffectFn(spell_morogrim_tidewalker_watery_grave_SpellScript::HandleDummy, EFFECT_0, SPELL_EFFECT_DUMMY);
-            }
-
-            private:
-                uint8 targetNumber;
-        };
-
-        SpellScript* GetSpellScript() const
-        {
-            return new spell_morogrim_tidewalker_watery_grave_SpellScript();
+            Acore::Containers::RandomResize(targets, maxSize);
         }
+    }
+
+    void HandleDummy(SpellEffIndex effIndex)
+    {
+        PreventHitDefaultEffect(effIndex);
+        if (Unit* target = GetHitUnit())
+            if (_targetNumber < 4)
+                GetCaster()->CastSpell(target, wateryGraveIds[_targetNumber++], true);
+    }
+
+    void Register() override
+    {
+        OnObjectAreaTargetSelect += SpellObjectAreaTargetSelectFn(spell_morogrim_tidewalker_watery_grave::FilterTargets, EFFECT_ALL, TARGET_UNIT_SRC_AREA_ENEMY);
+        OnEffectHitTarget += SpellEffectFn(spell_morogrim_tidewalker_watery_grave::HandleDummy, EFFECT_0, SPELL_EFFECT_DUMMY);
+    }
+
+private:
+    uint8 _targetNumber;
 };
 
-class spell_morogrim_tidewalker_water_globule_new_target : public SpellScriptLoader
+class spell_morogrim_tidewalker_water_globule_new_target : public SpellScript
 {
-    public:
-        spell_morogrim_tidewalker_water_globule_new_target() : SpellScriptLoader("spell_morogrim_tidewalker_water_globule_new_target") { }
+    PrepareSpellScript(spell_morogrim_tidewalker_water_globule_new_target);
 
-        class spell_morogrim_tidewalker_water_globule_new_target_SpellScript : public SpellScript
-        {
-            PrepareSpellScript(spell_morogrim_tidewalker_water_globule_new_target_SpellScript);
+    void FilterTargets(std::list<WorldObject*>& unitList)
+    {
+        Acore::Containers::RandomResize(unitList, 1);
+    }
 
-            void FilterTargets(std::list<WorldObject*>& unitList)
-            {
-                acore::Containers::RandomResizeList(unitList, 1);
-            }
+    void HandleDummy(SpellEffIndex effIndex)
+    {
+        PreventHitDefaultEffect(effIndex);
 
-            void HandleDummy(SpellEffIndex effIndex)
-            {
-                PreventHitDefaultEffect(effIndex);
+        // Xinef: if we have target we currently follow, return
+        if (Unit* target = GetCaster()->GetVictim())
+            if (GetCaster()->GetThreatMgr().GetThreat(target) >= 100000.0f)
+                return;
 
-                // Xinef: if we have target we currently follow, return
-                if (Unit* target = GetCaster()->GetVictim())
-                    if (GetCaster()->getThreatManager().getThreat(target) >= 100000.0f)
-                        return;
+        // Xinef: acquire new target
+        // TODO: sniffs to see how this actually happens
+        if (Unit* target = GetHitUnit())
+            GetCaster()->AddThreat(target, 1000000.0f);
+    }
 
-                // Xinef: acquire new target
-                if (Unit* target = GetHitUnit())
-                    GetCaster()->AddThreat(target, 1000000.0f);
-            }
-
-            void Register()
-            {
-                OnObjectAreaTargetSelect += SpellObjectAreaTargetSelectFn(spell_morogrim_tidewalker_water_globule_new_target_SpellScript::FilterTargets, EFFECT_0, TARGET_UNIT_SRC_AREA_ENEMY);
-                OnEffectHitTarget += SpellEffectFn(spell_morogrim_tidewalker_water_globule_new_target_SpellScript::HandleDummy, EFFECT_0, SPELL_EFFECT_DUMMY);
-            }
-        };
-
-        SpellScript* GetSpellScript() const
-        {
-            return new spell_morogrim_tidewalker_water_globule_new_target_SpellScript();
-        }
+    void Register() override
+    {
+        OnObjectAreaTargetSelect += SpellObjectAreaTargetSelectFn(spell_morogrim_tidewalker_water_globule_new_target::FilterTargets, EFFECT_0, TARGET_UNIT_SRC_AREA_ENEMY);
+        OnEffectHitTarget += SpellEffectFn(spell_morogrim_tidewalker_water_globule_new_target::HandleDummy, EFFECT_0, SPELL_EFFECT_DUMMY);
+    }
 };
 
 void AddSC_boss_morogrim_tidewalker()
 {
-    new boss_morogrim_tidewalker();
-    new spell_morogrim_tidewalker_watery_grave();
-    new spell_morogrim_tidewalker_water_globule_new_target();
+    RegisterSerpentShrineAI(boss_morogrim_tidewalker);
+    RegisterSpellScript(spell_morogrim_tidewalker_watery_grave);
+    RegisterSpellScript(spell_morogrim_tidewalker_water_globule_new_target);
 }
+

@@ -1,155 +1,39 @@
 /*
- * Copyright (C) 2016+     AzerothCore <www.azerothcore.org>, released under GNU GPL v2 license: https://github.com/azerothcore/azerothcore-wotlk/blob/master/LICENSE-GPL2
- * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
- * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
+ * This file is part of the AzerothCore Project. See AUTHORS file for Copyright information
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License as published by the
+ * Free Software Foundation; either version 3 of the License, or (at your
+ * option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 /* ScriptData
 SDName: Stormwind_City
 SD%Complete: 100
-SDComment: Quest support: 1640, 1447, 4185, 11223, 434.
+SDComment: Quest support: 1447, 4185, 11223, 434.
 SDCategory: Stormwind City
 EndScriptData */
 
 /* ContentData
 npc_archmage_malin
-npc_bartleby
-npc_lady_katrana_prestor
 npc_tyrion
 npc_tyrion_spybot
 npc_marzon_silent_blade
 npc_lord_gregor_lescovar
 EndContentData */
 
-#include "ScriptMgr.h"
-#include "ScriptedCreature.h"
-#include "ScriptedGossip.h"
-#include "ScriptedEscortAI.h"
+#include "CreatureScript.h"
 #include "Player.h"
-
-/*######
-## npc_bartleby
-######*/
-
-enum Bartleby
-{
-    FACTION_ENEMY       = 168,
-    QUEST_BEAT          = 1640
-};
-
-class npc_bartleby : public CreatureScript
-{
-public:
-    npc_bartleby() : CreatureScript("npc_bartleby") { }
-
-    bool OnQuestAccept(Player* player, Creature* creature, Quest const* quest)
-    {
-        if (quest->GetQuestId() == QUEST_BEAT)
-        {
-            creature->setFaction(FACTION_ENEMY);
-            creature->AI()->AttackStart(player);
-        }
-        return true;
-    }
-
-    CreatureAI* GetAI(Creature* creature) const
-    {
-        return new npc_bartlebyAI(creature);
-    }
-
-    struct npc_bartlebyAI : public ScriptedAI
-    {
-        npc_bartlebyAI(Creature* creature) : ScriptedAI(creature)
-        {
-            m_uiNormalFaction = creature->getFaction();
-        }
-
-        uint32 m_uiNormalFaction;
-
-        void Reset()
-        {
-            if (me->getFaction() != m_uiNormalFaction)
-                me->setFaction(m_uiNormalFaction);
-        }
-
-        void AttackedBy(Unit* pAttacker)
-        {
-            if (me->GetVictim())
-                return;
-
-            if (me->IsFriendlyTo(pAttacker))
-                return;
-
-            AttackStart(pAttacker);
-        }
-
-        void DamageTaken(Unit* pDoneBy, uint32 &uiDamage, DamageEffectType, SpellSchoolMask)
-        {
-            if (pDoneBy && (uiDamage >= me->GetHealth() || me->HealthBelowPctDamaged(15, uiDamage)))
-            {
-                //Take 0 damage
-                uiDamage = 0;
-
-                if (Player* player = pDoneBy->ToPlayer())
-                    player->AreaExploredOrEventHappens(QUEST_BEAT);
-                EnterEvadeMode();
-            }
-        }
-    };
-};
-
-/*######
-## npc_lady_katrana_prestor
-######*/
-
-#define GOSSIP_ITEM_KAT_1 "Pardon the intrusion, Lady Prestor, but Highlord Bolvar suggested that I seek your advice."
-#define GOSSIP_ITEM_KAT_2 "My apologies, Lady Prestor."
-#define GOSSIP_ITEM_KAT_3 "Begging your pardon, Lady Prestor. That was not my intent."
-#define GOSSIP_ITEM_KAT_4 "Thank you for your time, Lady Prestor."
-
-class npc_lady_katrana_prestor : public CreatureScript
-{
-public:
-    npc_lady_katrana_prestor() : CreatureScript("npc_lady_katrana_prestor") { }
-
-    bool OnGossipSelect(Player* player, Creature* creature, uint32 /*sender*/, uint32 action) override
-    {
-        ClearGossipMenuFor(player);
-        switch (action)
-        {
-            case GOSSIP_ACTION_INFO_DEF:
-                AddGossipItemFor(player, GOSSIP_ICON_CHAT, GOSSIP_ITEM_KAT_2, GOSSIP_SENDER_MAIN, GOSSIP_ACTION_INFO_DEF + 1);
-                SendGossipMenuFor(player, 2694, creature->GetGUID());
-                break;
-            case GOSSIP_ACTION_INFO_DEF+1:
-                AddGossipItemFor(player, GOSSIP_ICON_CHAT, GOSSIP_ITEM_KAT_3, GOSSIP_SENDER_MAIN, GOSSIP_ACTION_INFO_DEF + 2);
-                SendGossipMenuFor(player, 2695, creature->GetGUID());
-                break;
-            case GOSSIP_ACTION_INFO_DEF+2:
-                AddGossipItemFor(player, GOSSIP_ICON_CHAT, GOSSIP_ITEM_KAT_4, GOSSIP_SENDER_MAIN, GOSSIP_ACTION_INFO_DEF + 3);
-                SendGossipMenuFor(player, 2696, creature->GetGUID());
-                break;
-            case GOSSIP_ACTION_INFO_DEF+3:
-                CloseGossipMenuFor(player);
-                player->AreaExploredOrEventHappens(4185);
-                break;
-        }
-        return true;
-    }
-
-    bool OnGossipHello(Player* player, Creature* creature) override
-    {
-        if (creature->IsQuestGiver())
-            player->PrepareQuestMenu(creature->GetGUID());
-
-        if (player->GetQuestStatus(4185) == QUEST_STATUS_INCOMPLETE)
-            AddGossipItemFor(player, GOSSIP_ICON_CHAT, GOSSIP_ITEM_KAT_1, GOSSIP_SENDER_MAIN, GOSSIP_ACTION_INFO_DEF);
-
-        SendGossipMenuFor(player, 2693, creature->GetGUID());
-
-        return true;
-    }
-};
+#include "ScriptedCreature.h"
+#include "ScriptedEscortAI.h"
 
 /*######
 ## npc_lord_gregor_lescovar
@@ -177,7 +61,7 @@ class npc_lord_gregor_lescovar : public CreatureScript
 public:
     npc_lord_gregor_lescovar() : CreatureScript("npc_lord_gregor_lescovar") { }
 
-    CreatureAI* GetAI(Creature* creature) const
+    CreatureAI* GetAI(Creature* creature) const override
     {
         return new npc_lord_gregor_lescovarAI(creature);
     }
@@ -189,17 +73,17 @@ public:
         uint32 uiTimer;
         uint32 uiPhase;
 
-        uint64 MarzonGUID;
+        ObjectGuid MarzonGUID;
 
-        void Reset()
+        void Reset() override
         {
             uiTimer = 0;
             uiPhase = 0;
 
-            MarzonGUID = 0;
+            MarzonGUID.Clear();
         }
 
-        void EnterEvadeMode()
+        void EnterEvadeMode(EvadeReason /*why*/) override
         {
             me->DisappearAndDie();
 
@@ -210,7 +94,7 @@ public:
             }
         }
 
-        void EnterCombat(Unit* who)
+        void JustEngagedWith(Unit* who) override
         {
             if (Creature* pMarzon = ObjectAccessor::GetCreature(*me, MarzonGUID))
             {
@@ -219,7 +103,7 @@ public:
             }
         }
 
-        void WaypointReached(uint32 waypointId)
+        void WaypointReached(uint32 waypointId) override
         {
             switch (waypointId)
             {
@@ -256,7 +140,7 @@ public:
             }
         }
 
-        void UpdateAI(uint32 uiDiff)
+        void UpdateAI(uint32 uiDiff) override
         {
             if (uiPhase)
             {
@@ -302,13 +186,14 @@ public:
                             if (Creature* pTyrion = me->FindNearestCreature(NPC_TYRION, 20.0f, true))
                                 pTyrion->AI()->Talk(SAY_TYRION_2);
                             if (Creature* pMarzon = ObjectAccessor::GetCreature(*me, MarzonGUID))
-                                pMarzon->setFaction(14);
-                            me->setFaction(14);
+                                pMarzon->SetFaction(FACTION_MONSTER);
+                            me->SetFaction(FACTION_MONSTER);
                             uiTimer = 0;
                             uiPhase = 0;
                             break;
                     }
-                } else uiTimer -= uiDiff;
+                }
+                else uiTimer -= uiDiff;
             }
             npc_escortAI::UpdateAI(uiDiff);
 
@@ -329,7 +214,7 @@ class npc_marzon_silent_blade : public CreatureScript
 public:
     npc_marzon_silent_blade() : CreatureScript("npc_marzon_silent_blade") { }
 
-    CreatureAI* GetAI(Creature* creature) const
+    CreatureAI* GetAI(Creature* creature) const override
     {
         return new npc_marzon_silent_bladeAI(creature);
     }
@@ -341,18 +226,18 @@ public:
             me->SetWalk(true);
         }
 
-        void Reset()
+        void Reset() override
         {
             me->RestoreFaction();
         }
 
-        void EnterCombat(Unit* who)
+        void JustEngagedWith(Unit* who) override
         {
             Talk(SAY_MARZON_2);
 
             if (me->IsSummon())
             {
-                if (Unit* summoner = me->ToTempSummon()->GetSummoner())
+                if (Unit* summoner = me->ToTempSummon()->GetSummonerUnit())
                 {
                     if (summoner->GetTypeId() == TYPEID_UNIT && summoner->IsAlive() && !summoner->IsInCombat())
                         summoner->ToCreature()->AI()->AttackStart(who);
@@ -360,13 +245,13 @@ public:
             }
         }
 
-        void EnterEvadeMode()
+        void EnterEvadeMode(EvadeReason /*why*/) override
         {
             me->DisappearAndDie();
 
             if (me->IsSummon())
             {
-                if (Unit* summoner = me->ToTempSummon()->GetSummoner())
+                if (Unit* summoner = me->ToTempSummon()->GetSummonerUnit())
                 {
                     if (summoner->GetTypeId() == TYPEID_UNIT && summoner->IsAlive())
                         summoner->ToCreature()->DisappearAndDie();
@@ -374,14 +259,14 @@ public:
             }
         }
 
-        void MovementInform(uint32 uiType, uint32 /*uiId*/)
+        void MovementInform(uint32 uiType, uint32 /*uiId*/) override
         {
             if (uiType != POINT_MOTION_TYPE)
                 return;
 
             if (me->IsSummon())
             {
-                Unit* summoner = me->ToTempSummon()->GetSummoner();
+                Unit* summoner = me->ToTempSummon()->GetSummonerUnit();
                 if (summoner && summoner->GetTypeId() == TYPEID_UNIT && summoner->IsAIEnabled)
                 {
                     npc_lord_gregor_lescovar::npc_lord_gregor_lescovarAI* ai =
@@ -396,7 +281,7 @@ public:
             }
         }
 
-        void UpdateAI(uint32 /*diff*/)
+        void UpdateAI(uint32 /*diff*/) override
         {
             if (!UpdateVictim())
                 return;
@@ -430,7 +315,7 @@ class npc_tyrion_spybot : public CreatureScript
 public:
     npc_tyrion_spybot() : CreatureScript("npc_tyrion_spybot") { }
 
-    CreatureAI* GetAI(Creature* creature) const
+    CreatureAI* GetAI(Creature* creature) const override
     {
         return new npc_tyrion_spybotAI(creature);
     }
@@ -442,13 +327,13 @@ public:
         uint32 uiTimer;
         uint32 uiPhase;
 
-        void Reset()
+        void Reset() override
         {
             uiTimer = 0;
             uiPhase = 0;
         }
 
-        void WaypointReached(uint32 waypointId)
+        void WaypointReached(uint32 waypointId) override
         {
             switch (waypointId)
             {
@@ -472,7 +357,7 @@ public:
             }
         }
 
-        void UpdateAI(uint32 uiDiff)
+        void UpdateAI(uint32 uiDiff) override
         {
             if (uiPhase)
             {
@@ -487,7 +372,10 @@ public:
                             break;
                         case 2:
                             if (Creature* pTyrion = me->FindNearestCreature(NPC_TYRION, 10.0f))
-                                pTyrion->AI()->Talk(SAY_TYRION_1);
+                            {
+                                if (Player* player = GetPlayerForEscort())
+                                    pTyrion->AI()->Talk(SAY_TYRION_1, player);
+                            }
                             uiTimer = 3000;
                             uiPhase = 3;
                             break;
@@ -497,10 +385,10 @@ public:
                             uiPhase = 4;
                             break;
                         case 4:
-                           SetEscortPaused(false);
-                           uiPhase = 0;
-                           uiTimer = 0;
-                           break;
+                            SetEscortPaused(false);
+                            uiPhase = 0;
+                            uiTimer = 0;
+                            break;
                         case 5:
                             if (Creature* pGuard = me->FindNearestCreature(NPC_STORMWIND_ROYAL, 10.0f, true))
                                 pGuard->AI()->Talk(SAY_GUARD_1);
@@ -542,7 +430,8 @@ public:
                             uiPhase = 0;
                             break;
                     }
-                } else uiTimer -= uiDiff;
+                }
+                else uiTimer -= uiDiff;
             }
             npc_escortAI::UpdateAI(uiDiff);
 
@@ -568,7 +457,7 @@ class npc_tyrion : public CreatureScript
 public:
     npc_tyrion() : CreatureScript("npc_tyrion") { }
 
-    bool OnQuestAccept(Player* player, Creature* creature, Quest const* quest)
+    bool OnQuestAccept(Player* player, Creature* creature, Quest const* quest) override
     {
         if (quest->GetQuestId() == QUEST_THE_ATTACK)
         {
@@ -585,8 +474,6 @@ public:
 
 void AddSC_stormwind_city()
 {
-    new npc_bartleby();
-    new npc_lady_katrana_prestor();
     new npc_tyrion();
     new npc_tyrion_spybot();
     new npc_lord_gregor_lescovar();

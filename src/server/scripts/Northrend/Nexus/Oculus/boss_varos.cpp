@@ -1,8 +1,21 @@
 /*
- * Originally written by Pussywizard - Copyright (C) 2016+ AzerothCore <www.azerothcore.org>, released under GNU AGPL v3 license: https://github.com/azerothcore/azerothcore-wotlk/blob/master/LICENSE-AGPL3
-*/
+ * This file is part of the AzerothCore Project. See AUTHORS file for Copyright information
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License as published by the
+ * Free Software Foundation; either version 3 of the License, or (at your
+ * option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
 
-#include "ScriptMgr.h"
+#include "CreatureScript.h"
 #include "ScriptedCreature.h"
 #include "oculus.h"
 
@@ -67,34 +80,34 @@ class boss_varos : public CreatureScript
 public:
     boss_varos() : CreatureScript("boss_varos") { }
 
-    CreatureAI* GetAI(Creature* pCreature) const
+    CreatureAI* GetAI(Creature* pCreature) const override
     {
-        return new boss_varosAI (pCreature);
+        return GetOculusAI<boss_varosAI>(pCreature);
     }
     struct boss_varosAI : public ScriptedAI
     {
-        boss_varosAI(Creature *c) : ScriptedAI(c)
+        boss_varosAI(Creature* c) : ScriptedAI(c)
         {
             pInstance = c->GetInstanceScript();
         }
-        
+
         InstanceScript* pInstance;
         EventMap events;
         float ZapAngle;
 
-        void Reset()
+        void Reset() override
         {
             if (pInstance)
             {
                 pInstance->SetData(DATA_VAROS, NOT_STARTED);
                 if( pInstance->GetData(DATA_CC_COUNT) < 10 )
                 {
-                    me->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NON_ATTACKABLE);
+                    me->SetUnitFlag(UNIT_FLAG_NON_ATTACKABLE);
                     me->CastSpell(me, 50053, true);
                 }
                 else
                 {
-                    me->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NON_ATTACKABLE);
+                    me->RemoveUnitFlag(UNIT_FLAG_NON_ATTACKABLE);
                     me->InterruptNonMeleeSpells(false);
                     me->RemoveAura(50053);
                 }
@@ -107,7 +120,7 @@ public:
             me->DisableRotate(false);
         }
 
-        void EnterCombat(Unit*  /*who*/)
+        void JustEngagedWith(Unit*  /*who*/) override
         {
             Talk(SAY_AGGRO);
 
@@ -116,12 +129,12 @@ public:
 
             me->SetInCombatWithZone();
 
-            events.RescheduleEvent(EVENT_AMPLIFY_MAGIC, urand(5000, 10000));
-            events.RescheduleEvent(EVENT_CALL_AZURE_RING_CAPTAIN_1, 5000);
-            events.RescheduleEvent(EVENT_ENERGIZE_CORES_THIN, 0);
+            events.RescheduleEvent(EVENT_AMPLIFY_MAGIC, 5s, 10s);
+            events.RescheduleEvent(EVENT_CALL_AZURE_RING_CAPTAIN_1, 5s);
+            events.RescheduleEvent(EVENT_ENERGIZE_CORES_THIN, 0ms);
         }
 
-        void JustDied(Unit*  /*killer*/)
+        void JustDied(Unit*  /*killer*/) override
         {
             Talk(SAY_DEATH);
 
@@ -132,17 +145,17 @@ public:
             }
         }
 
-        void EnterEvadeMode()
+        void EnterEvadeMode(EvadeReason why) override
         {
             me->SetControlled(false, UNIT_STATE_ROOT);
             me->DisableRotate(false);
-            ScriptedAI::EnterEvadeMode();
+            ScriptedAI::EnterEvadeMode(why);
         }
 
-        void MoveInLineOfSight(Unit*  /*who*/) {}
-        void JustSummoned(Creature*  /*summon*/) {}
+        void MoveInLineOfSight(Unit*  /*who*/) override {}
+        void JustSummoned(Creature*  /*summon*/) override {}
 
-        void UpdateAI(uint32 diff)
+        void UpdateAI(uint32 diff) override
         {
             if( !UpdateVictim() )
                 return;
@@ -154,15 +167,15 @@ public:
 
             DoMeleeAttackIfReady();
 
-            switch( events.GetEvent() )
+            switch( events.ExecuteEvent() )
             {
                 case 0:
                     break;
                 case EVENT_AMPLIFY_MAGIC:
                     {
-                        if( Unit* target = SelectTarget(SELECT_TARGET_RANDOM, 0, 50.0f, true) )
+                        if( Unit* target = SelectTarget(SelectTargetMethod::Random, 0, 50.0f, true) )
                             me->CastSpell(target, SPELL_AMPLIFY_MAGIC, false);
-                        events.RepeatEvent(urand(17500, 22500));
+                        events.Repeat(17s + 500ms, 22s + 500ms);
                     }
                     break;
                 case EVENT_CALL_AZURE_RING_CAPTAIN_1:
@@ -172,26 +185,26 @@ public:
                     {
                         Talk(SAY_AZURE);
                         Talk(SAY_AZURE_EMOTE);
-                        switch( events.GetEvent() )
+                        switch( events.ExecuteEvent() )
                         {
                             case EVENT_CALL_AZURE_RING_CAPTAIN_1:
                                 me->CastSpell(me, SPELL_CALL_AZURE_RING_CAPTAIN_1, true);
-                                events.ScheduleEvent(EVENT_CALL_AZURE_RING_CAPTAIN_2, 16000);
+                                events.ScheduleEvent(EVENT_CALL_AZURE_RING_CAPTAIN_2, 16s);
                                 break;
                             case EVENT_CALL_AZURE_RING_CAPTAIN_2:
                                 me->CastSpell(me, SPELL_CALL_AZURE_RING_CAPTAIN_2, true);
-                                events.ScheduleEvent(EVENT_CALL_AZURE_RING_CAPTAIN_3, 16000);
+                                events.ScheduleEvent(EVENT_CALL_AZURE_RING_CAPTAIN_3, 16s);
                                 break;
                             case EVENT_CALL_AZURE_RING_CAPTAIN_3:
                                 me->CastSpell(me, SPELL_CALL_AZURE_RING_CAPTAIN_3, true);
-                                events.ScheduleEvent(EVENT_CALL_AZURE_RING_CAPTAIN_4, 16000);
+                                events.ScheduleEvent(EVENT_CALL_AZURE_RING_CAPTAIN_4, 16s);
                                 break;
                             case EVENT_CALL_AZURE_RING_CAPTAIN_4:
                                 me->CastSpell(me, SPELL_CALL_AZURE_RING_CAPTAIN_4, true);
-                                events.ScheduleEvent(EVENT_CALL_AZURE_RING_CAPTAIN_1, 16000);
+                                events.ScheduleEvent(EVENT_CALL_AZURE_RING_CAPTAIN_1, 16s);
                                 break;
                         }
-                        if( Unit* target = SelectTarget(SELECT_TARGET_RANDOM, 0, 100.0f, true) )
+                        if( Unit* target = SelectTarget(SelectTargetMethod::Random, 0, 100.0f, true) )
                         {
                             if( Creature* trigger = me->SummonCreature(NPC_ARCANE_BEAM, target->GetPositionX(), target->GetPositionY(), target->GetPositionZ(), 0.0f, TEMPSUMMON_TIMED_DESPAWN, 13000) )
                             {
@@ -201,7 +214,6 @@ public:
                                 trigger->CastSpell(me, SPELL_ARCANE_BEAM_PERIODIC_DAMAGE, true);
                             }
                         }
-                        events.PopEvent();
                     }
                     break;
                 case EVENT_ENERGIZE_CORES_THIN:
@@ -210,8 +222,7 @@ public:
                         me->DisableRotate(false);
                         me->SetOrientation(ZapAngle);
                         me->CastSpell(me, SPELL_ENERGIZE_CORES_THIN, true);
-                        events.PopEvent();
-                        events.ScheduleEvent(EVENT_ENERGIZE_CORES_DAMAGE, 4500);
+                        events.ScheduleEvent(EVENT_ENERGIZE_CORES_DAMAGE, 4500ms);
                     }
                     break;
                 case EVENT_ENERGIZE_CORES_DAMAGE:
@@ -221,12 +232,11 @@ public:
                         me->DisableSpline();
                         me->SetFacingTo(ZapAngle);
                         me->SetControlled(true, UNIT_STATE_ROOT);
-                        me->CastSpell((Unit*)NULL, SPELL_ENERGIZE_CORES, false);
-                        ZapAngle += M_PI/2;
-                        if( ZapAngle >= 2*M_PI )
-                            ZapAngle -= 2*M_PI;
-                        events.PopEvent();
-                        events.ScheduleEvent(EVENT_ENERGIZE_CORES_THIN, 2000);
+                        me->CastSpell((Unit*)nullptr, SPELL_ENERGIZE_CORES, false);
+                        ZapAngle += M_PI / 2;
+                        if( ZapAngle >= 2 * M_PI )
+                            ZapAngle -= 2 * M_PI;
+                        events.ScheduleEvent(EVENT_ENERGIZE_CORES_THIN, 2s);
                     }
                     break;
             }

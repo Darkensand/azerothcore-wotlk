@@ -5,12 +5,17 @@ CONFIG="$3"
 SYSLOG="$4"
 SYSERR="$5"
 GDB_ENABLED="$6"
+CRASHES_PATH="$7"
 
 if [ $GDB_ENABLED -eq 1 ]; then
-    echo "set logging on" > "$GDB_FILE"
+    echo "set logging file "$CRASHES_PATH"/gdb-$(date +%Y-%m-%d-%H-%M-%S).txt" > "$GDB_FILE"
+    echo "set logging on" >> "$GDB_FILE"
     echo "set debug timestamp" >> "$GDB_FILE"
     echo "run -c $3" >> "$GDB_FILE"
     echo "bt" >> "$GDB_FILE"
+    echo "bt full" >> "$GDB_FILE"
+    echo "info thread" >> "$GDB_FILE"
+    echo "thread apply all backtrace full" >> "$GDB_FILE"
 
     [ ! -f "$SYSLOG" ] && touch "$SYSLOG"
     [ ! -f "$SYSERR" ] && touch "$SYSERR"

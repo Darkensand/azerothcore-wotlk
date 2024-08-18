@@ -1,7 +1,18 @@
 /*
- * Copyright (C) 2016+     AzerothCore <www.azerothcore.org>, released under GNU GPL v2 license: https://github.com/azerothcore/azerothcore-wotlk/blob/master/LICENSE-GPL2
- * Copyright (C) 2008-2016 TrinityCore <http://www.trinitycore.org/>
- * Copyright (C) 2005-2009 MaNGOS <http://getmangos.com/>
+ * This file is part of the AzerothCore Project. See AUTHORS file for Copyright information
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License as published by the
+ * Free Software Foundation; either version 3 of the License, or (at your
+ * option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 /* ScriptData
@@ -17,15 +28,15 @@ npc_highborne_lamenter
 npc_parqual_fintallas
 EndContentData */
 
-#include "Player.h"
-#include "ScriptMgr.h"
-#include "ScriptedCreature.h"
-#include "ScriptedGossip.h"
-#include "ScriptedEscortAI.h"
-#include "SpellAuras.h"
+#include "CreatureScript.h"
 #include "ObjectAccessor.h"
-#include "SpellScript.h"
+#include "Player.h"
+#include "ScriptedCreature.h"
+#include "ScriptedEscortAI.h"
+#include "ScriptedGossip.h"
 #include "SpellAuraEffects.h"
+#include "SpellScript.h"
+#include "SpellScriptLoader.h"
 
 /*######
 ## npc_lady_sylvanas_windrunner
@@ -73,7 +84,7 @@ enum Sylvanas
     GUID_EVENT_INVOKER              = 1,
 };
 
-float HighborneLoc[4][3]=
+float HighborneLoc[4][3] =
 {
     {1285.41f, 312.47f, 0.51f},
     {1286.96f, 310.40f, 1.00f},
@@ -89,7 +100,7 @@ class npc_lady_sylvanas_windrunner : public CreatureScript
 public:
     npc_lady_sylvanas_windrunner() : CreatureScript("npc_lady_sylvanas_windrunner") { }
 
-    bool OnQuestReward(Player* player, Creature* creature, const Quest *_Quest, uint32 /*slot*/) override
+    bool OnQuestReward(Player* player, Creature* creature, const Quest* _Quest, uint32 /*slot*/) override
     {
         if (_Quest->GetQuestId() == QUEST_JOURNEY_TO_UNDERCITY)
             creature->AI()->SetGUID(player->GetGUID(), GUID_EVENT_INVOKER);
@@ -106,21 +117,20 @@ public:
         void Reset() override
         {
             LamentEvent = false;
-            targetGUID = 0;
-            playerGUID = 0;
+            playerGUID.Clear();
             _events.Reset();
         }
 
-        void EnterCombat(Unit* /*who*/) override
+        void JustEngagedWith(Unit* /*who*/) override
         {
-            _events.ScheduleEvent(EVENT_FADE, 30000);
-            _events.ScheduleEvent(EVENT_SUMMON_SKELETON, 20000);
-            _events.ScheduleEvent(EVENT_BLACK_ARROW, 15000);
-            _events.ScheduleEvent(EVENT_SHOOT, 8000);
-            _events.ScheduleEvent(EVENT_MULTI_SHOT, 10000);
+            _events.ScheduleEvent(EVENT_FADE, 30s);
+            _events.ScheduleEvent(EVENT_SUMMON_SKELETON, 20s);
+            _events.ScheduleEvent(EVENT_BLACK_ARROW, 15s);
+            _events.ScheduleEvent(EVENT_SHOOT, 8s);
+            _events.ScheduleEvent(EVENT_MULTI_SHOT, 10s);
         }
 
-        void SetGUID(uint64 guid, int32 type) override
+        void SetGUID(ObjectGuid guid, int32 type) override
         {
             if (type == GUID_EVENT_INVOKER)
             {
@@ -133,8 +143,8 @@ public:
                 for (uint8 i = 0; i < 4; ++i)
                     me->SummonCreature(NPC_HIGHBORNE_LAMENTER, HighborneLoc[i][0], HighborneLoc[i][1], HIGHBORNE_LOC_Y, HighborneLoc[i][2], TEMPSUMMON_TIMED_DESPAWN, 160000);
 
-                _events.ScheduleEvent(EVENT_LAMENT_OF_THE_HIGHBORN, 2000);
-                _events.ScheduleEvent(EVENT_SUNSORROW_WHISPER, 10000);
+                _events.ScheduleEvent(EVENT_LAMENT_OF_THE_HIGHBORN, 2s);
+                _events.ScheduleEvent(EVENT_SUNSORROW_WHISPER, 10s);
             }
         }
 
@@ -143,8 +153,8 @@ public:
             if (summoned->GetEntry() == NPC_HIGHBORNE_BUNNY)
             {
                 summoned->SetDisableGravity(true);
-                float speed = summoned->GetDistance(summoned->GetPositionX(), summoned->GetPositionY(), me->GetPositionZ()+15.0f) / (1000.0f * 0.001f);
-                summoned->MonsterMoveWithSpeed(summoned->GetPositionX(), summoned->GetPositionY(), me->GetPositionZ()+15.0f, speed);
+                float speed = summoned->GetDistance(summoned->GetPositionX(), summoned->GetPositionY(), me->GetPositionZ() + 15.0f) / (1000.0f * 0.001f);
+                summoned->MonsterMoveWithSpeed(summoned->GetPositionX(), summoned->GetPositionY(), me->GetPositionZ() + 15.0f, speed);
                 summoned->CastSpell(summoned, SPELL_RIBBON_OF_SOULS, false);
             }
         }
@@ -171,26 +181,26 @@ public:
                         if (Unit* victim = me->GetVictim())
                             if (me->GetDistance(victim) > 10.0f)
                                 DoCast(victim, SPELL_MULTI_SHOT);
-                        _events.ScheduleEvent(EVENT_FADE, urand(30000, 35000));
+                        _events.ScheduleEvent(EVENT_FADE, 30s,  35s);
                         break;
                     case EVENT_SUMMON_SKELETON:
                         DoCast(me, SPELL_SUMMON_SKELETON);
-                        _events.ScheduleEvent(EVENT_SUMMON_SKELETON, urand(20000, 30000));
+                        _events.ScheduleEvent(EVENT_SUMMON_SKELETON, 20s, 30s);
                         break;
                     case EVENT_BLACK_ARROW:
                         if (Unit* victim = me->GetVictim())
                             DoCast(victim, SPELL_BLACK_ARROW);
-                        _events.ScheduleEvent(EVENT_BLACK_ARROW, urand(15000, 20000));
+                        _events.ScheduleEvent(EVENT_BLACK_ARROW, 15s, 20s);
                         break;
                     case EVENT_SHOOT:
                         if (Unit* victim = me->GetVictim())
                             DoCast(victim, SPELL_SHOT);
-                        _events.ScheduleEvent(EVENT_SHOOT, urand(8000, 10000));
+                        _events.ScheduleEvent(EVENT_SHOOT, 8s, 10s);
                         break;
                     case EVENT_MULTI_SHOT:
                         if (Unit* victim = me->GetVictim())
                             DoCast(victim, SPELL_MULTI_SHOT);
-                        _events.ScheduleEvent(EVENT_MULTI_SHOT, urand(10000, 13000));
+                        _events.ScheduleEvent(EVENT_MULTI_SHOT, 10s, 13s);
                         break;
                     case EVENT_LAMENT_OF_THE_HIGHBORN:
                         if (!me->HasAura(SPELL_SYLVANAS_CAST))
@@ -204,7 +214,7 @@ public:
                         else
                         {
                             DoSummon(NPC_HIGHBORNE_BUNNY, me, 10.0f, 3000, TEMPSUMMON_TIMED_DESPAWN);
-                            _events.ScheduleEvent(EVENT_LAMENT_OF_THE_HIGHBORN, 2000);
+                            _events.ScheduleEvent(EVENT_LAMENT_OF_THE_HIGHBORN, 2s);
                         }
                         break;
                     case EVENT_SUNSORROW_WHISPER:
@@ -223,8 +233,7 @@ public:
     private:
         EventMap _events;
         bool LamentEvent;
-        uint64 targetGUID;
-        uint64 playerGUID;
+        ObjectGuid playerGUID;
     };
 
     CreatureAI* GetAI(Creature* creature) const override
@@ -242,7 +251,7 @@ class npc_highborne_lamenter : public CreatureScript
 public:
     npc_highborne_lamenter() : CreatureScript("npc_highborne_lamenter") { }
 
-    CreatureAI* GetAI(Creature* creature) const
+    CreatureAI* GetAI(Creature* creature) const override
     {
         return new npc_highborne_lamenterAI(creature);
     }
@@ -264,7 +273,7 @@ public:
             EventCast = true;
         }
 
-        void EnterCombat(Unit* /*who*/) override { }
+        void JustEngagedWith(Unit* /*who*/) override { }
 
         void UpdateAI(uint32 diff) override
         {
@@ -276,7 +285,8 @@ public:
                     me->MonsterMoveWithSpeed(me->GetPositionX(), me->GetPositionY(), HIGHBORNE_LOC_Y_NEW, me->GetDistance(me->GetPositionX(), me->GetPositionY(), HIGHBORNE_LOC_Y_NEW) / (5000 * 0.001f));
                     me->SetPosition(me->GetPositionX(), me->GetPositionY(), HIGHBORNE_LOC_Y_NEW, me->GetOrientation());
                     EventMove = false;
-                } else EventMoveTimer -= diff;
+                }
+                else EventMoveTimer -= diff;
             }
             if (EventCast)
             {
@@ -284,7 +294,8 @@ public:
                 {
                     DoCast(me, SPELL_HIGHBORNE_AURA);
                     EventCast = false;
-                } else EventCastTimer -= diff;
+                }
+                else EventCastTimer -= diff;
             }
         }
     };
@@ -296,12 +307,12 @@ public:
 
 enum ParqualFintallas
 {
-    SPELL_MARK_OF_SHAME         = 6767
+    SPELL_MARK_OF_SHAME             = 6767,
+    QUEST_ID_TEST_OF_LORE           = 6628,
+    GOSSIP_MENU_ID_TEST_OF_LORE     = 4764,
+    GOSSIP_TEXTID_PARQUAL_FINTALLAS = 5821,
+    GOSSIP_TEXTID_TEST_OF_LORE      = 5822,
 };
-
-#define GOSSIP_HPF1             "Gul'dan"
-#define GOSSIP_HPF2             "Kel'Thuzad"
-#define GOSSIP_HPF3             "Ner'zhul"
 
 class npc_parqual_fintallas : public CreatureScript
 {
@@ -311,12 +322,12 @@ public:
     bool OnGossipSelect(Player* player, Creature* creature, uint32 /*sender*/, uint32 action) override
     {
         ClearGossipMenuFor(player);
-        if (action == GOSSIP_ACTION_INFO_DEF+1)
+        if (action == GOSSIP_ACTION_INFO_DEF + 1)
         {
             CloseGossipMenuFor(player);
             creature->CastSpell(player, SPELL_MARK_OF_SHAME, false);
         }
-        if (action == GOSSIP_ACTION_INFO_DEF+2)
+        if (action == GOSSIP_ACTION_INFO_DEF + 2)
         {
             CloseGossipMenuFor(player);
             player->AreaExploredOrEventHappens(6628);
@@ -327,26 +338,24 @@ public:
     bool OnGossipHello(Player* player, Creature* creature) override
     {
         if (creature->IsQuestGiver())
-            player->PrepareQuestMenu(creature->GetGUID());
-
-        if (player->GetQuestStatus(6628) == QUEST_STATUS_INCOMPLETE && !player->HasAura(SPELL_MARK_OF_SHAME))
         {
-            AddGossipItemFor(player, GOSSIP_ICON_CHAT, GOSSIP_HPF1, GOSSIP_SENDER_MAIN, GOSSIP_ACTION_INFO_DEF+1);
-            AddGossipItemFor(player, GOSSIP_ICON_CHAT, GOSSIP_HPF2, GOSSIP_SENDER_MAIN, GOSSIP_ACTION_INFO_DEF+1);
-            AddGossipItemFor(player, GOSSIP_ICON_CHAT, GOSSIP_HPF3, GOSSIP_SENDER_MAIN, GOSSIP_ACTION_INFO_DEF+2);
-            SendGossipMenuFor(player, 5822, creature->GetGUID());
+            player->PrepareQuestMenu(creature->GetGUID());
+        }
+
+        if (player->GetQuestStatus(QUEST_ID_TEST_OF_LORE) == QUEST_STATUS_INCOMPLETE && !player->HasAura(SPELL_MARK_OF_SHAME))
+        {
+            AddGossipItemFor(player, GOSSIP_MENU_ID_TEST_OF_LORE, 0, GOSSIP_SENDER_MAIN, GOSSIP_ACTION_INFO_DEF + 1);
+            AddGossipItemFor(player, GOSSIP_MENU_ID_TEST_OF_LORE, 1, GOSSIP_SENDER_MAIN, GOSSIP_ACTION_INFO_DEF + 1);
+            AddGossipItemFor(player, GOSSIP_MENU_ID_TEST_OF_LORE, 3, GOSSIP_SENDER_MAIN, GOSSIP_ACTION_INFO_DEF + 2);
+            SendGossipMenuFor(player, GOSSIP_TEXTID_TEST_OF_LORE, creature->GetGUID());
         }
         else
-            SendGossipMenuFor(player, 5821, creature->GetGUID());
+        {
+            SendGossipMenuFor(player, GOSSIP_TEXTID_PARQUAL_FINTALLAS, creature->GetGUID());
+        }
 
         return true;
     }
-};
-
-enum Factions
-{
-    FACTION_HOSTILE = 14,
-    FACTION_FRIENDLY_TO_ALL = 35
 };
 
 /*######
@@ -478,7 +487,6 @@ enum ThrallMisc
     THRALL_SAY_THRONE_9 = 33,
     THRALL_SAY_THRONE_10 = 34,
     THRALL_SAY_THRONE_11 = 35,
-
 
     // Sounds
     SOUND_THRALL_1 = 16212,
@@ -740,12 +748,11 @@ enum Worldstates
     WORLD_STATE_FAIL_H = 3878
 };
 
-struct Location
-{
+struct LocationXYZO {
     float x, y, z, o;
 };
 
-static Location AllianceSpawn[] =
+static LocationXYZO AllianceSpawn[] =
 {
     { 1603.97f, 718.02f, 65.10f, 0  }, // guardian // sewers
     { 1604.78f, 657.22f, 40.80f, 0  }, // wave 1
@@ -756,7 +763,7 @@ static Location AllianceSpawn[] =
     { 1680.86f, 596.73f, -6.37f, 0  },
     { 1676.41f, 558.28f, -18.46f, 0 }, // Blightworm
     { 1685.16f, 620.41f, 5.74f, 0   }, // soldiers
-    { 0.0f, 0.0f, 0.0f, 0           }, // trash wave 
+    { 0.0f, 0.0f, 0.0f, 0           }, // trash wave
     { 1500.03f, 409.59f, -62.18f, 0 }, // guardians
     { 1444.25f, 453.86f, -70.48f, 0 }, // dreadlords
     { 1432.43f, 403.20f, -85.26f, 0 }, // putress
@@ -780,7 +787,7 @@ static Location AllianceSpawn[] =
     { 1307.92f, 395.53f, -63.24f, 4.472f },
 };
 
-static Location AllianceWP[] =
+static LocationXYZO AllianceWP[] =
 {
     { 1737.06f, 734.176f, 48.8f, 0      }, // Jaina sewers UNUSED
     { 1682.92f, 730.89f, 76.84f, 0      }, // UNUSED
@@ -794,12 +801,12 @@ static Location AllianceWP[] =
     { 1300.75f, 347.39f, -65.02f, 0     }, // jaina throne room
 };
 
-static Location HordeSpawn[] =
+static LocationXYZO HordeSpawn[] =
 {
     { 1581.94f, 383.22f, -62.22f, 0 } // Khanok
 };
 
-static Location ThrallSpawn[] =
+static LocationXYZO ThrallSpawn[] =
 {
     // Vortex
     { 1880.0001f, 237.8242f, 59.472f, 3.060f  },
@@ -898,7 +905,7 @@ static Location ThrallSpawn[] =
     { 1591.325f, 397.874f, -4.130f, 6.191f    },
     // NPC_KHANOK - Inner Sunktum Middle
     { 1573.400f, 398.450f, -65.862f, 5.618f   },
-    // NPC_WARSONG_BATTLEGUARD - NPC_KHANOK WinSpawn 
+    // NPC_WARSONG_BATTLEGUARD - NPC_KHANOK WinSpawn
     { 1590.502f, 375.876f, -62.177f, 3.237f   },
     // Valimathras Room Preparation
     // Stones
@@ -938,23 +945,23 @@ public:
     bool OnGossipSelect(Player* player, Creature* creature, uint32 /*sender*/, uint32 action) override
     {
         ClearGossipMenuFor(player);
-        
+
         switch (action)
         {
             case GOSSIP_ACTION_INFO_DEF + 1:
                 CloseGossipMenuFor(player);
-                
+
                 if (auto ai = CAST_AI(npc_varian_wrynn::npc_varian_wrynnAI, creature->AI()))
                 {
                     ai->Start(true, true, player->GetGUID());
                     if (Creature* jaina = GetClosestCreatureWithEntry(creature, NPC_JAINA, 50.0f))
                         ai->jainaGUID = jaina->GetGUID();
                     else
-                        ai->jainaGUID = 0;
+                        ai->jainaGUID.Clear();
                     ai->SetDespawnAtEnd(false);
                     ai->SetDespawnAtFar(false);
                 }
-                
+
                 break;
         }
 
@@ -978,9 +985,6 @@ public:
     {
         npc_varian_wrynnAI(Creature* creature) : npc_escortAI(creature)
         {
-            memset(generatorGUID, 0, sizeof(generatorGUID));
-            memset(allianceForcesGUID, 0, sizeof(allianceForcesGUID));
-            memset(hordeForcesGUID, 0, sizeof(hordeForcesGUID));
             allianceGuardsGUID.clear();
         }
 
@@ -992,25 +996,25 @@ public:
 
         uint32 whirlwindTimer;
 
-        uint64 jainaGUID;
-        uint64 putressGUID;
-        uint64 blightWormGUID;
-        uint64 khanokGUID;
-        uint64 thrallGUID;
-        uint64 sylvanasGUID;
+        ObjectGuid jainaGUID;
+        ObjectGuid putressGUID;
+        ObjectGuid blightWormGUID;
+        ObjectGuid khanokGUID;
+        ObjectGuid thrallGUID;
+        ObjectGuid sylvanasGUID;
 
-        uint64 generatorGUID[GENERATOR_MAXCOUNT];
-        uint64 allianceForcesGUID[ALLIANCE_FORCE_MAXCOUNT];
-        uint64 hordeForcesGUID[HORDE_FORCE_MAXCOUNT];
-        std::vector<uint64> allianceGuardsGUID;
+        ObjectGuid generatorGUID[GENERATOR_MAXCOUNT];
+        ObjectGuid allianceForcesGUID[ALLIANCE_FORCE_MAXCOUNT];
+        ObjectGuid hordeForcesGUID[HORDE_FORCE_MAXCOUNT];
+        GuidVector allianceGuardsGUID;
 
         EventMap _events;
 
-        void EnterEvadeMode() override
+        void EnterEvadeMode(EvadeReason /*why*/) override
         {
-            me->DeleteThreatList();
+            me->GetThreatMgr().ClearAllThreat();
             me->CombatStop(true);
-            me->SetLootRecipient(NULL);
+            me->SetLootRecipient(nullptr);
 
             if (HasEscortState(STATE_ESCORT_ESCORTING))
             {
@@ -1030,53 +1034,53 @@ public:
             {
                 me->SetCorpseDelay(1);
                 me->SetRespawnTime(1);
-                me->SetFlag(UNIT_NPC_FLAGS, UNIT_NPC_FLAG_GOSSIP);
+                me->SetNpcFlag(UNIT_NPC_FLAG_GOSSIP);
 
                 bStepping = false;
                 step = 0;
                 phaseTimer = 0;
-                jainaGUID = 0;
-                _events.ScheduleEvent(EVENT_WHIRLWIND, 5 * IN_MILLISECONDS);
-                _events.ScheduleEvent(EVENT_HEROIC_LEAP, 10 * IN_MILLISECONDS);
-                _events.ScheduleEvent(EVENT_AGGRO_JAINA, 2 * IN_MILLISECONDS);
-                _events.ScheduleEvent(EVENT_WRYNN_BUFF, 2 * IN_MILLISECONDS);
+                jainaGUID.Clear();
+                _events.ScheduleEvent(EVENT_WHIRLWIND, 5s);
+                _events.ScheduleEvent(EVENT_HEROIC_LEAP, 10s);
+                _events.ScheduleEvent(EVENT_AGGRO_JAINA, 2s);
+                _events.ScheduleEvent(EVENT_WRYNN_BUFF, 2s);
                 me->ApplySpellImmune(0, IMMUNITY_ID, SPELL_SYLVANAS_BUFF, true);
 
                 if (Creature* putress = ObjectAccessor::GetCreature(*me, putressGUID))
                 {
                     putress->DespawnOrUnsummon();
-                    putressGUID = 0;
+                    putressGUID.Clear();
                 }
 
                 if (Creature* blightWorm = ObjectAccessor::GetCreature(*me, blightWormGUID))
                 {
                     blightWorm->DespawnOrUnsummon();
-                    blightWormGUID = 0;
+                    blightWormGUID.Clear();
                 }
 
                 if (Creature* khanok = ObjectAccessor::GetCreature(*me, khanokGUID))
                 {
                     khanok->DespawnOrUnsummon();
-                    khanokGUID = 0;
+                    khanokGUID.Clear();
                 }
 
                 if (Creature* thrall = ObjectAccessor::GetCreature(*me, thrallGUID))
                 {
                     thrall->DespawnOrUnsummon();
-                    thrallGUID = 0;
+                    thrallGUID.Clear();
                 }
 
                 if (Creature* sylvanas = ObjectAccessor::GetCreature(*me, sylvanasGUID))
                 {
                     sylvanas->DespawnOrUnsummon();
-                    sylvanasGUID = 0;
+                    sylvanasGUID.Clear();
                 }
 
                 for (uint8 i = 0; i < GENERATOR_MAXCOUNT; ++i)
                 {
                     if (Creature* temp = ObjectAccessor::GetCreature(*me, generatorGUID[i]))
                     {
-                        generatorGUID[i] = 0;
+                        generatorGUID[i].Clear();
                         temp->DespawnOrUnsummon();
                     }
                 }
@@ -1085,13 +1089,13 @@ public:
                 {
                     if (Creature* temp = ObjectAccessor::GetCreature(*me, allianceForcesGUID[i]))
                     {
-                        allianceForcesGUID[i] = 0;
+                        allianceForcesGUID[i].Clear();
                         temp->DespawnOrUnsummon();
                     }
                 }
 
-                for (std::vector<uint64>::const_iterator i = allianceGuardsGUID.begin(); i != allianceGuardsGUID.end(); ++i)
-                    if (Creature* temp = ObjectAccessor::GetCreature(*me, *i))
+                for (ObjectGuid const& guid : allianceGuardsGUID)
+                    if (Creature* temp = ObjectAccessor::GetCreature(*me, guid))
                         temp->DespawnOrUnsummon();
 
                 allianceGuardsGUID.clear();
@@ -1100,22 +1104,22 @@ public:
                 {
                     if (Creature* temp = ObjectAccessor::GetCreature(*me, hordeForcesGUID[i]))
                     {
-                        hordeForcesGUID[i] = 0;
+                        hordeForcesGUID[i].Clear();
                         temp->DespawnOrUnsummon();
                     }
                 }
             }
         }
 
-        void JustSummoned(Creature* summoned) override
+        void JustSummoned(Creature* summonedCreature) override
         {
-            switch (summoned->GetEntry())
+            switch (summonedCreature->GetEntry())
             {
                 case NPC_GENERATOR:
-                    summoned->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
-                    summoned->ApplySpellImmune(0, IMMUNITY_ID, SPELL_WRYNN_BUFF, true);
-                    summoned->ApplySpellImmune(0, IMMUNITY_ID, SPELL_THRALL_BUFF, true);
-                    summoned->ApplySpellImmune(0, IMMUNITY_ID, SPELL_SYLVANAS_BUFF, true);
+                    summonedCreature->SetUnitFlag(UNIT_FLAG_NOT_SELECTABLE);
+                    summonedCreature->ApplySpellImmune(0, IMMUNITY_ID, SPELL_WRYNN_BUFF, true);
+                    summonedCreature->ApplySpellImmune(0, IMMUNITY_ID, SPELL_THRALL_BUFF, true);
+                    summonedCreature->ApplySpellImmune(0, IMMUNITY_ID, SPELL_SYLVANAS_BUFF, true);
                     break;
                 default:
                     break;
@@ -1145,7 +1149,7 @@ public:
         {
             Map::PlayerList const& players = map->GetPlayers();
 
-            if (!players.isEmpty())
+            if (!players.IsEmpty())
             {
                 for (Map::PlayerList::const_iterator itr = players.begin(); itr != players.end(); ++itr)
                 {
@@ -1296,7 +1300,7 @@ public:
                     {
                         khanokGUID = temp->GetGUID();
                         if (Creature* khanok = ObjectAccessor::GetCreature(*me, khanokGUID))
-                            khanok->setDeathState(JUST_DIED);
+                            khanok->setDeathState(DeathState::JustDied);
                     }
                     if (Unit* temp = me->SummonCreature(NPC_PUTRESS, AllianceSpawn[12].x, AllianceSpawn[12].y, AllianceSpawn[12].z, TEMPSUMMON_MANUAL_DESPAWN))
                     {
@@ -1415,8 +1419,7 @@ public:
                     {
                         thrallGUID = temp->GetGUID();
                         temp->SetReactState(REACT_PASSIVE);
-                        temp->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC);
-                        temp->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PC);
+                        temp->SetImmuneToAll(true);
                         temp->CastSpell(temp, SPELL_THRALL_BUFF);
                         temp->SetUInt32Value(UNIT_NPC_EMOTESTATE, EMOTE_STATE_READY2H);
                     }
@@ -1424,8 +1427,7 @@ public:
                     {
                         sylvanasGUID = temp->GetGUID();
                         temp->SetReactState(REACT_PASSIVE);
-                        temp->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC);
-                        temp->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PC);
+                        temp->SetImmuneToAll(true);
                         temp->SetUInt32Value(UNIT_NPC_EMOTESTATE, EMOTE_STATE_READY2H);
                     }
                     for (uint8 i = 0; i < HORDE_FORCE_MAXCOUNT; ++i)
@@ -1434,8 +1436,7 @@ public:
                         {
                             hordeForcesGUID[i] = temp->GetGUID();
                             temp->SetReactState(REACT_PASSIVE);
-                            temp->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC);
-                            temp->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PC);
+                            temp->SetImmuneToAll(true);
                             temp->SetUInt32Value(UNIT_NPC_EMOTESTATE, EMOTE_STATE_READY2H);
                         }
                     }
@@ -1446,8 +1447,7 @@ public:
                         if (Unit* temp = me->SummonCreature(NPC_SW_SOLDIER, AllianceSpawn[i + 25].x, AllianceSpawn[i + 25].y, AllianceSpawn[i + 25].z, AllianceSpawn[i + 25].o, TEMPSUMMON_MANUAL_DESPAWN))
                         {
                             allianceForcesGUID[i] = temp->GetGUID();
-                            temp->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC);
-                            temp->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PC);
+                            temp->SetImmuneToAll(true);
                             temp->SetUInt32Value(UNIT_NPC_EMOTESTATE, EMOTE_STATE_READY2H);
                         }
                     }
@@ -1471,7 +1471,7 @@ public:
                     if (Creature* jaina = ObjectAccessor::GetCreature(*me, jainaGUID))
                     {
                         jaina->GetMotionMaster()->Clear();
-                        jaina->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC);
+                        jaina->SetImmuneToNPC(false);
                         jaina->SetReactState(REACT_AGGRESSIVE);
                     }
                     SetHoldState(true);
@@ -1579,7 +1579,7 @@ public:
                             bStepping = false;
                             JumpToNextStep(0);
                             break;
-                            //Sewers
+                        //Sewers
                         case 9:
                             Talk(WRYNN_SAY_SEWERS_1);
                             SpawnWave(0);
@@ -1609,7 +1609,7 @@ public:
                             {
                                 jaina->GetMotionMaster()->MoveFollow(me, 5, PET_FOLLOW_ANGLE);
                                 jaina->SetReactState(REACT_AGGRESSIVE);
-                                jaina->setFaction(FACTION_ESCORT_N_NEUTRAL_ACTIVE);
+                                jaina->SetFaction(FACTION_ESCORT_N_NEUTRAL_ACTIVE);
                             }
                             bStepping = false;
                             JumpToNextStep(0);
@@ -1663,7 +1663,7 @@ public:
                             SetEscortPaused(false);
                             JumpToNextStep(0);
                             break;
-                            //Apothecarium
+                        //Apothecarium
                         case 24:
                             if (Creature* jaina = ObjectAccessor::GetCreature(*me, jainaGUID))
                                 jaina->AI()->Talk(JAINA_SAY_APO_1);
@@ -1815,8 +1815,7 @@ public:
                         case 53:
                             if (Creature* putress = ObjectAccessor::GetCreature(*me, putressGUID))
                             {
-                                putress->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC);
-                                putress->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PC);
+                                putress->SetImmuneToAll(false);
                                 putress->AddThreat(me, 100.0f);
                                 me->AddThreat(putress, 100.0f);
                                 putress->RemoveAura(SPELL_PUTRESS_CASTING_STATE);
@@ -1889,7 +1888,7 @@ public:
                         case 66:
                             if (Creature* jaina = ObjectAccessor::GetCreature(*me, jainaGUID))
                                 jaina->AI()->Talk(JAINA_SAY_THRONE_1);
-                            me->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC);
+                            me->SetImmuneToNPC(true);
                             bStepping = false;
                             JumpToNextStep(0);
                             break;
@@ -1902,8 +1901,7 @@ public:
                             if (Creature* jaina = ObjectAccessor::GetCreature(*me, jainaGUID))
                             {
                                 jaina->GetMotionMaster()->MovePoint(0, AllianceWP[8].x, AllianceWP[8].y, AllianceWP[8].z);
-                                jaina->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC);
-                                jaina->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PC);
+                                jaina->SetImmuneToAll(true);
                             }
                             SetEscortPaused(false);
                             bStepping = false;
@@ -1928,12 +1926,12 @@ public:
                             break;
                         case 73:
                             Talk(WRYNN_SAY_THRONE_9);
-                            me->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC | UNIT_FLAG_IMMUNE_TO_PC);
+                            me->SetImmuneToAll(false);
                             if (Creature* thrall = ObjectAccessor::GetCreature(*me, thrallGUID))
                             {
                                 thrall->SetReactState(REACT_AGGRESSIVE);
-                                thrall->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC);
-                                thrall->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PC);
+                                thrall->SetImmuneToNPC(false);
+                                thrall->SetImmuneToPC(true);
                                 thrall->AddThreat(me, 100.0f);
                                 me->AddThreat(thrall, 100.0f);
                                 thrall->AI()->AttackStart(me);
@@ -1941,8 +1939,8 @@ public:
                             if (Creature* sylvanas = ObjectAccessor::GetCreature(*me, sylvanasGUID))
                             {
                                 sylvanas->SetReactState(REACT_AGGRESSIVE);
-                                sylvanas->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC);
-                                sylvanas->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PC);
+                                sylvanas->SetImmuneToNPC(false);
+                                sylvanas->SetImmuneToPC(true);
                                 sylvanas->AddThreat(me, 100.0f);
                                 sylvanas->AI()->AttackStart(me);
                                 me->AddThreat(sylvanas, 100.0f);
@@ -1952,8 +1950,8 @@ public:
                                 if (Creature* temp = ObjectAccessor::GetCreature(*me, hordeForcesGUID[i]))
                                 {
                                     temp->SetReactState(REACT_AGGRESSIVE);
-                                    temp->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC);
-                                    temp->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PC);
+                                    temp->SetImmuneToNPC(false);
+                                    temp->SetImmuneToPC(true);
                                 }
                             }
                             for (uint8 i = 0; i < ALLIANCE_FORCE_MAXCOUNT; ++i)
@@ -1964,8 +1962,8 @@ public:
                                     {
                                         temp->SetReactState(REACT_AGGRESSIVE);
                                         temp2->SetReactState(REACT_AGGRESSIVE);
-                                        temp->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC | UNIT_FLAG_IMMUNE_TO_PC);
-                                        temp2->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC | UNIT_FLAG_IMMUNE_TO_PC);
+                                        temp->SetImmuneToAll(false);
+                                        temp2->SetImmuneToAll(false);
                                         temp->AddThreat(temp2, 100.0f);
                                         temp->AI()->AttackStart(temp2);
                                         temp2->AddThreat(temp, 100.0f);
@@ -2000,12 +1998,12 @@ public:
                             if (!HelperList.empty())
                                 for (std::list<Creature*>::iterator itr = HelperList.begin(); itr != HelperList.end(); itr++)
                                     (*itr)->DespawnOrUnsummon();
-                            if (Map *map = me->GetMap())
+                            if (Map* map = me->GetMap())
                             {
-                                Map::PlayerList const &PlayerList = map->GetPlayers();
+                                Map::PlayerList const& PlayerList = map->GetPlayers();
                                 for (Map::PlayerList::const_iterator i = PlayerList.begin(); i != PlayerList.end(); ++i)
                                 {
-                                    if (Player *player = i->GetSource())
+                                    if (Player* player = i->GetSource())
                                     {
                                         if (me->IsInRange(player, 0.0f, 50.0f))
                                         {
@@ -2044,21 +2042,26 @@ public:
                 {
                     case EVENT_WHIRLWIND:
                         DoCast(me, SPELL_WHIRLWIND);
-                        _events.ScheduleEvent(EVENT_WHIRLWIND, 20 * IN_MILLISECONDS);
+                        _events.ScheduleEvent(EVENT_WHIRLWIND, 20s);
                         break;
                     case EVENT_HEROIC_LEAP:
                         DoCastVictim(SPELL_HEROIC_LEAP);
-                        _events.ScheduleEvent(EVENT_HEROIC_LEAP, urand(15, 30) * IN_MILLISECONDS);
+                        _events.ScheduleEvent(EVENT_HEROIC_LEAP, 15s, 30s);
                         break;
                     case EVENT_AGGRO_JAINA:
                         if (me->GetVictim())
+                        {
                             if (Creature* jaina = ObjectAccessor::GetCreature(*me, jainaGUID))
-                                jaina->AI()->AttackStart(me->GetVictim()); DoCast(me, SPELL_THUNDER);
-                        _events.ScheduleEvent(EVENT_AGGRO_JAINA, 2 * IN_MILLISECONDS);
+                            {
+                                jaina->AI()->AttackStart(me->GetVictim());
+                            }
+                        }
+                        DoCast(me, SPELL_THUNDER);
+                        _events.ScheduleEvent(EVENT_AGGRO_JAINA, 2s);
                         break;
                     case EVENT_WRYNN_BUFF:
                         DoCast(me, SPELL_WRYNN_BUFF);
-                        _events.ScheduleEvent(EVENT_WRYNN_BUFF, 10 * IN_MILLISECONDS);
+                        _events.ScheduleEvent(EVENT_WRYNN_BUFF, 10s);
                         break;
                     default:
                         break;
@@ -2095,9 +2098,9 @@ public:
         {
             me->SetCorpseDelay(1);
             me->SetRespawnTime(1);
-            _events.ScheduleEvent(EVENT_FIREBALL, 1 * IN_MILLISECONDS);
-            _events.ScheduleEvent(EVENT_BLIZZARD, 8 * IN_MILLISECONDS);
-            _events.ScheduleEvent(EVENT_ELEMENTAL, 30 * IN_MILLISECONDS);
+            _events.ScheduleEvent(EVENT_FIREBALL, 1s);
+            _events.ScheduleEvent(EVENT_BLIZZARD, 8s);
+            _events.ScheduleEvent(EVENT_ELEMENTAL, 30s);
             me->ApplySpellImmune(0, IMMUNITY_ID, SPELL_THRALL_BUFF, true);
             me->ApplySpellImmune(0, IMMUNITY_ID, SPELL_SYLVANAS_BUFF, true);
         }
@@ -2117,17 +2120,17 @@ public:
                 switch (eventId)
                 {
                     case EVENT_FIREBALL:
-                        if (Unit* target = SelectTarget(SELECT_TARGET_RANDOM, 0))
+                        if (Unit* target = SelectTarget(SelectTargetMethod::Random, 0))
                             DoCast(target, SPELL_FIREBALL);
-                        _events.ScheduleEvent(EVENT_FIREBALL, 3 * IN_MILLISECONDS);
+                        _events.ScheduleEvent(EVENT_FIREBALL, 3s);
                         break;
                     case EVENT_BLIZZARD:
                         DoCast(SPELL_BLIZZARD);
-                        _events.ScheduleEvent(EVENT_BLIZZARD, 15 * IN_MILLISECONDS);
+                        _events.ScheduleEvent(EVENT_BLIZZARD, 15s);
                         break;
                     case EVENT_ELEMENTAL:
                         DoCast(SPELL_ELEMENTALS);
-                        _events.ScheduleEvent(EVENT_ELEMENTAL, 90 * IN_MILLISECONDS);
+                        _events.ScheduleEvent(EVENT_ELEMENTAL, 90s);
                         break;
                     default:
                         break;
@@ -2164,13 +2167,13 @@ public:
     {
         boss_blight_wormAI(Creature* creature) : ScriptedAI(creature)
         {
-            SetCombatMovement(false);
+            me->SetCombatMovement(false);
         }
 
         void Reset() override
         {
-            _events.ScheduleEvent(EVENT_INFEST, 2 * IN_MILLISECONDS);
-            _events.ScheduleEvent(EVENT_BLIGHT_BREATH, 7.5 * IN_MILLISECONDS);
+            _events.ScheduleEvent(EVENT_INFEST, 2s);
+            _events.ScheduleEvent(EVENT_BLIGHT_BREATH, 750ms);
         }
 
         void UpdateAI(uint32 diff) override
@@ -2188,13 +2191,13 @@ public:
                 switch (eventId)
                 {
                     case EVENT_INFEST:
-                        if (Unit* target = SelectTarget(SELECT_TARGET_RANDOM, 0, 0, true))
+                        if (Unit* target = SelectTarget(SelectTargetMethod::Random, 0, 0, true))
                             DoCast(target, SPELL_INGEST);
-                        _events.ScheduleEvent(EVENT_INFEST, 20 * IN_MILLISECONDS);
+                        _events.ScheduleEvent(EVENT_INFEST, 20s);
                         break;
                     case EVENT_BLIGHT_BREATH:
                         DoCast(SPELL_BLIGHT_BREATH);
-                        _events.ScheduleEvent(EVENT_BLIGHT_BREATH, 15 * IN_MILLISECONDS);
+                        _events.ScheduleEvent(EVENT_BLIGHT_BREATH, 15s);
                         break;
                     default:
                         break;
@@ -2219,38 +2222,25 @@ public:
 ######*/
 
 // - 61123 - Ingest
-class spell_blight_worm_ingest : public SpellScriptLoader
+class spell_blight_worm_ingest : public SpellScript
 {
-public:
-    spell_blight_worm_ingest() : SpellScriptLoader("spell_blight_worm_ingest") { }
+    PrepareSpellScript(spell_blight_worm_ingest);
 
-    class spell_blight_worm_ingest_SpellScript : public SpellScript
+    bool Validate(SpellInfo const* /*spellInfo*/) override
     {
-        PrepareSpellScript(spell_blight_worm_ingest_SpellScript);
+        return ValidateSpellInfo({ SPELL_INGEST });
+    }
 
-        bool Validate(SpellInfo const* /*spellInfo*/) override
-        {
-            if (!sSpellMgr->GetSpellInfo(SPELL_INGEST))
-                return false;
-            return true;
-        }
-
-        void HandleScript(SpellEffIndex /*effIndex*/)
-        {
-            if (Unit* target = GetHitUnit())
-                if (Unit* caster = GetCaster())
-                    target->CastSpell(caster, SPELL_INGEST_TRIGGER, true);
-        }
-
-        void Register() override
-        {
-            OnEffectHitTarget += SpellEffectFn(spell_blight_worm_ingest_SpellScript::HandleScript, EFFECT_0, SPELL_EFFECT_SCRIPT_EFFECT);
-        }
-    };
-
-    SpellScript* GetSpellScript() const override
+    void HandleScript(SpellEffIndex /*effIndex*/)
     {
-        return new spell_blight_worm_ingest_SpellScript();
+        if (Unit* target = GetHitUnit())
+            if (Unit* caster = GetCaster())
+                target->CastSpell(caster, SPELL_INGEST_TRIGGER, true);
+    }
+
+    void Register() override
+    {
+        OnEffectHitTarget += SpellEffectFn(spell_blight_worm_ingest::HandleScript, EFFECT_0, SPELL_EFFECT_SCRIPT_EFFECT);
     }
 };
 
@@ -2270,27 +2260,27 @@ public:
     bool OnGossipSelect(Player* player, Creature* creature, uint32 /*sender*/, uint32 action) override
     {
         ClearGossipMenuFor(player);
-        
+
         switch (action)
         {
             case GOSSIP_ACTION_INFO_DEF + 1:
-            {
-                CloseGossipMenuFor(player);
-                
-                if (auto thrall_ai = CAST_AI(npc_thrall_bfu::npc_thrall_bfuAI, creature->AI()))
                 {
-                    if (Creature* sylvannas = GetClosestCreatureWithEntry(creature, NPC_SYLVANAS, 50.0f))
+                    CloseGossipMenuFor(player);
+
+                    if (auto thrall_ai = CAST_AI(npc_thrall_bfu::npc_thrall_bfuAI, creature->AI()))
                     {
-                        thrall_ai->sylvanasfollowGUID = sylvannas->GetGUID();
-                        thrall_ai->Start(true, true, player->GetGUID());
-                        thrall_ai->SetDespawnAtEnd(false);
-                        thrall_ai->SetDespawnAtFar(false);
+                        if (Creature* sylvannas = GetClosestCreatureWithEntry(creature, NPC_SYLVANAS, 50.0f))
+                        {
+                            thrall_ai->sylvanasfollowGUID = sylvannas->GetGUID();
+                            thrall_ai->Start(true, true, player->GetGUID());
+                            thrall_ai->SetDespawnAtEnd(false);
+                            thrall_ai->SetDespawnAtFar(false);
+                        }
+                        else
+                            thrall_ai->sylvanasfollowGUID.Clear();
                     }
-                    else
-                        thrall_ai->sylvanasfollowGUID = 0;
+                    break;
                 }
-                break;
-            }
         }
 
         return true;
@@ -2325,7 +2315,6 @@ public:
     {
         npc_thrall_bfuAI(Creature* creature) : npc_escortAI(creature)
         {
-            memset(allianceForcesGUID, 0, sizeof(allianceForcesGUID));
             hordeGuardsGUID.clear();
         }
 
@@ -2335,23 +2324,23 @@ public:
         uint32 step;
         uint32 phaseTimer;
 
-        uint64 sylvanasfollowGUID;
-        uint64 allianceForcesGUID[ALLIANCE_FORCE_MAXCOUNT];
-        uint64 ValimathrasGUID;
-        uint64 ValimathrasPortalGUID;
-        uint64 WrynnGUID;
-        uint64 JainaGUID;
-        uint64 SaurfangGUID;
-        std::vector<uint64> hordeGuardsGUID;
+        ObjectGuid sylvanasfollowGUID;
+        ObjectGuid allianceForcesGUID[ALLIANCE_FORCE_MAXCOUNT];
+        ObjectGuid ValimathrasGUID;
+        ObjectGuid ValimathrasPortalGUID;
+        ObjectGuid WrynnGUID;
+        ObjectGuid JainaGUID;
+        ObjectGuid SaurfangGUID;
+        GuidVector hordeGuardsGUID;
 
         EventMap _events;
 
-        void EnterEvadeMode() override
+        void EnterEvadeMode(EvadeReason /*why*/) override
         {
             me->RemoveAura(SPELL_HEROIC_VANGUARD);
-            me->DeleteThreatList();
+            me->GetThreatMgr().ClearAllThreat();
             me->CombatStop(true);
-            me->SetLootRecipient(NULL);
+            me->SetLootRecipient(nullptr);
 
             if (HasEscortState(STATE_ESCORT_ESCORTING))
             {
@@ -2373,52 +2362,52 @@ public:
                 me->Mount(MODEL_WHITE_WULF);
                 me->SetCorpseDelay(1);
                 me->SetRespawnTime(1);
-                me->SetFlag(UNIT_NPC_FLAGS, UNIT_NPC_FLAG_GOSSIP);
+                me->SetNpcFlag(UNIT_NPC_FLAG_GOSSIP);
                 me->ApplySpellImmune(0, IMMUNITY_ID, SPELL_SYLVANAS_BUFF, true);
 
                 bStepping = false;
                 EnableAttack = false;
                 step = 0;
                 phaseTimer = 0;
-                sylvanasfollowGUID = 0;
-                _events.ScheduleEvent(EVENT_CHAIN_LIGHTNING, 3 * IN_MILLISECONDS);
-                _events.ScheduleEvent(EVENT_LAVA_BURST, 5 * IN_MILLISECONDS);
-                _events.ScheduleEvent(EVENT_THUNDER, 8 * IN_MILLISECONDS);
-                _events.ScheduleEvent(EVENT_AGGRO_SYLVANAS, 2 * IN_MILLISECONDS);
-                _events.ScheduleEvent(EVENT_THRALL_BUFF, 2 * IN_MILLISECONDS);
+                sylvanasfollowGUID.Clear();
+                _events.ScheduleEvent(EVENT_CHAIN_LIGHTNING, 3s);
+                _events.ScheduleEvent(EVENT_LAVA_BURST, 5s);
+                _events.ScheduleEvent(EVENT_THUNDER, 8s);
+                _events.ScheduleEvent(EVENT_AGGRO_SYLVANAS, 2s);
+                _events.ScheduleEvent(EVENT_THRALL_BUFF, 2s);
 
                 if (Creature* valimathras = ObjectAccessor::GetCreature(*me, ValimathrasGUID))
                 {
                     valimathras->DespawnOrUnsummon();
-                    ValimathrasGUID = 0;
+                    ValimathrasGUID.Clear();
                 }
 
                 if (Creature* valimathrasportal = ObjectAccessor::GetCreature(*me, ValimathrasPortalGUID))
                 {
                     valimathrasportal->DespawnOrUnsummon();
-                    ValimathrasPortalGUID = 0;
+                    ValimathrasPortalGUID.Clear();
                 }
 
                 if (Creature* wrynn = ObjectAccessor::GetCreature(*me, WrynnGUID))
                 {
                     wrynn->DespawnOrUnsummon();
-                    WrynnGUID = 0;
+                    WrynnGUID.Clear();
                 }
 
                 if (Creature* jaina = ObjectAccessor::GetCreature(*me, JainaGUID))
                 {
                     jaina->DespawnOrUnsummon();
-                    JainaGUID = 0;
+                    JainaGUID.Clear();
                 }
 
                 if (Creature* saurfang = ObjectAccessor::GetCreature(*me, SaurfangGUID))
                 {
                     saurfang->DespawnOrUnsummon();
-                    SaurfangGUID = 0;
+                    SaurfangGUID.Clear();
                 }
 
-                for (std::vector<uint64>::const_iterator i = hordeGuardsGUID.begin(); i != hordeGuardsGUID.end(); ++i)
-                    if (Creature* temp = ObjectAccessor::GetCreature(*me, *i))
+                for (ObjectGuid const& guid : hordeGuardsGUID)
+                    if (Creature* temp = ObjectAccessor::GetCreature(*me, guid))
                         temp->DespawnOrUnsummon();
 
                 hordeGuardsGUID.clear();
@@ -2437,12 +2426,12 @@ public:
                     summoned->SetUInt32Value(UNIT_NPC_EMOTESTATE, EMOTE_STATE_READY2H);
                     break;
                 case NPC_VARIMATHRAS_PORTAL:
-                    summoned->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
+                    summoned->SetUnitFlag(UNIT_FLAG_NOT_SELECTABLE);
                     summoned->ApplySpellImmune(0, IMMUNITY_ID, SPELL_THRALL_BUFF, true);
                     summoned->ApplySpellImmune(0, IMMUNITY_ID, SPELL_SYLVANAS_BUFF, true);
                     break;
                 case NPC_CAVE_DUMMY:
-                    summoned->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
+                    summoned->SetUnitFlag(UNIT_FLAG_NOT_SELECTABLE);
                     summoned->ApplySpellImmune(0, IMMUNITY_ID, SPELL_THRALL_BUFF, true);
                     summoned->ApplySpellImmune(0, IMMUNITY_ID, SPELL_SYLVANAS_BUFF, true);
                     summoned->AddAura(SPELL_CYCLONE_FALL, summoned);
@@ -2455,7 +2444,7 @@ public:
                     summoned->ApplySpellImmune(0, IMMUNITY_ID, SPELL_THRALL_BUFF, true);
                     summoned->ApplySpellImmune(0, IMMUNITY_ID, SPELL_SYLVANAS_BUFF, true);
                     if (!EnableAttack)
-                        summoned->setFaction(FACTION_FRIENDLY_TO_ALL);
+                        summoned->SetFaction(FACTION_FRIENDLY);
                     summoned->AddThreat(me, 100.0f);
                     me->AddThreat(summoned, 100.0f);
                     summoned->AI()->AttackStart(me);
@@ -2487,41 +2476,41 @@ public:
                     bStepping = true;
                     break;
                 case NPC_KHANOK:
-                {
-                    UpdateWorldState(me->GetMap(), WORLD_STATE_INNER_SANKTUM_FIGHT_H, 0);
-                    UpdateWorldState(me->GetMap(), WORLD_STATE_INNER_SANKTUM_DONE_H, 1);
-                    FollowThrall();
-                    SetEscortPaused(false);
-                    std::list<Creature*> SanktumList;
-                    me->GetCreatureListWithEntryInGrid(SanktumList, NPC_FELGUARD_MORADEUR, 1000.0f);
-                    me->GetCreatureListWithEntryInGrid(SanktumList, NPC_DREADLORD, 1000.0f);
-                    me->GetCreatureListWithEntryInGrid(SanktumList, NPC_TREACHEROUS_GUARDIAN_H, 1000.0f);
-                    me->GetCreatureListWithEntryInGrid(SanktumList, NPC_DOCTOR_H, 1000.0f);
-                    me->GetCreatureListWithEntryInGrid(SanktumList, NPC_CHEMIST_H, 1000.0f);
-                    me->GetCreatureListWithEntryInGrid(SanktumList, NPC_BETRAYER_H, 1000.0f);
-                    me->GetCreatureListWithEntryInGrid(SanktumList, NPC_FELBEAST_H, 1000.0f);
-                    me->GetCreatureListWithEntryInGrid(SanktumList, NPC_DOOMGUARD_PILLARGER, 1000.0f);
-                    if (!SanktumList.empty())
-                        for (std::list<Creature*>::iterator itr = SanktumList.begin(); itr != SanktumList.end(); itr++)
-                            (*itr)->DespawnOrUnsummon();
-                    break;
-                }
+                    {
+                        UpdateWorldState(me->GetMap(), WORLD_STATE_INNER_SANKTUM_FIGHT_H, 0);
+                        UpdateWorldState(me->GetMap(), WORLD_STATE_INNER_SANKTUM_DONE_H, 1);
+                        FollowThrall();
+                        SetEscortPaused(false);
+                        std::list<Creature*> SanktumList;
+                        me->GetCreatureListWithEntryInGrid(SanktumList, NPC_FELGUARD_MORADEUR, 1000.0f);
+                        me->GetCreatureListWithEntryInGrid(SanktumList, NPC_DREADLORD, 1000.0f);
+                        me->GetCreatureListWithEntryInGrid(SanktumList, NPC_TREACHEROUS_GUARDIAN_H, 1000.0f);
+                        me->GetCreatureListWithEntryInGrid(SanktumList, NPC_DOCTOR_H, 1000.0f);
+                        me->GetCreatureListWithEntryInGrid(SanktumList, NPC_CHEMIST_H, 1000.0f);
+                        me->GetCreatureListWithEntryInGrid(SanktumList, NPC_BETRAYER_H, 1000.0f);
+                        me->GetCreatureListWithEntryInGrid(SanktumList, NPC_FELBEAST_H, 1000.0f);
+                        me->GetCreatureListWithEntryInGrid(SanktumList, NPC_DOOMGUARD_PILLARGER, 1000.0f);
+                        if (!SanktumList.empty())
+                            for (std::list<Creature*>::iterator itr = SanktumList.begin(); itr != SanktumList.end(); itr++)
+                                (*itr)->DespawnOrUnsummon();
+                        break;
+                    }
                 case NPC_VARIMATHRAS:
-                {
-                    UpdateWorldState(me->GetMap(), WORLD_STATE_ROYAL_QUARTER_FIGHT_H, 0);
-                    UpdateWorldState(me->GetMap(), WORLD_STATE_ROYAL_QUARTER_DONE_H, 1);
-                    std::list<Creature*> ThroneList;
-                    me->GetCreatureListWithEntryInGrid(ThroneList, NPC_LEGION_OVERLORD, 1000.0f);
-                    me->GetCreatureListWithEntryInGrid(ThroneList, NPC_LEGION_INVADER, 1000.0f);
-                    me->GetCreatureListWithEntryInGrid(ThroneList, NPC_LEGION_DREADWHISPER, 1000.0f);
-                    me->GetCreatureListWithEntryInGrid(ThroneList, NPC_VARIMATHRAS_PORTAL, 1000.0f);
-                    if (!ThroneList.empty())
-                        for (std::list<Creature*>::iterator itr = ThroneList.begin(); itr != ThroneList.end(); itr++)
-                            (*itr)->DespawnOrUnsummon();
-                    SetEscortPaused(false);
-                    SetRun(false);
-                    break;
-                }
+                    {
+                        UpdateWorldState(me->GetMap(), WORLD_STATE_ROYAL_QUARTER_FIGHT_H, 0);
+                        UpdateWorldState(me->GetMap(), WORLD_STATE_ROYAL_QUARTER_DONE_H, 1);
+                        std::list<Creature*> ThroneList;
+                        me->GetCreatureListWithEntryInGrid(ThroneList, NPC_LEGION_OVERLORD, 1000.0f);
+                        me->GetCreatureListWithEntryInGrid(ThroneList, NPC_LEGION_INVADER, 1000.0f);
+                        me->GetCreatureListWithEntryInGrid(ThroneList, NPC_LEGION_DREADWHISPER, 1000.0f);
+                        me->GetCreatureListWithEntryInGrid(ThroneList, NPC_VARIMATHRAS_PORTAL, 1000.0f);
+                        if (!ThroneList.empty())
+                            for (std::list<Creature*>::iterator itr = ThroneList.begin(); itr != ThroneList.end(); itr++)
+                                (*itr)->DespawnOrUnsummon();
+                        SetEscortPaused(false);
+                        SetRun(false);
+                        break;
+                    }
                 default:
                     break;
             }
@@ -2531,7 +2520,7 @@ public:
         {
             Map::PlayerList const& players = map->GetPlayers();
 
-            if (!players.isEmpty())
+            if (!players.IsEmpty())
             {
                 for (Map::PlayerList::const_iterator itr = players.begin(); itr != players.end(); ++itr)
                 {
@@ -2557,9 +2546,9 @@ public:
             if (Creature* sylvanas = ObjectAccessor::GetCreature(*me, sylvanasfollowGUID))
             {
                 sylvanas->GetMotionMaster()->Clear();
-                sylvanas->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC | UNIT_FLAG_IMMUNE_TO_PC);
+                sylvanas->SetImmuneToAll(false);
                 sylvanas->SetReactState(REACT_AGGRESSIVE);
-                sylvanas->setFaction(FACTION_ESCORT_N_NEUTRAL_ACTIVE);
+                sylvanas->SetFaction(FACTION_ESCORT_N_NEUTRAL_ACTIVE);
                 sylvanas->GetMotionMaster()->MoveFollow(me, 1, M_PI * 0.1f);
             }
         }
@@ -2599,7 +2588,7 @@ public:
                     if (Unit* temp = me->SummonCreature(NPC_VARIMATHRAS, ThrallSpawn[23].x, ThrallSpawn[23].y, ThrallSpawn[23].z, ThrallSpawn[23].o, TEMPSUMMON_TIMED_OR_DEAD_DESPAWN, 900 * IN_MILLISECONDS))
                     {
                         ValimathrasGUID = temp->GetGUID();
-                        temp->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC | UNIT_FLAG_IMMUNE_TO_PC);
+                        temp->SetImmuneToAll(true);
                     }
                     break;
                 case 3:
@@ -2612,15 +2601,15 @@ public:
                     {
                         switch (urand(0, 2))
                         {
-                        case 0:
-                            me->SummonCreature(NPC_TREACHEROUS_GUARDIAN_H, ThrallSpawn[25].x + rand32() % 5, ThrallSpawn[25].y + rand32() % 5, ThrallSpawn[25].z, TEMPSUMMON_DEAD_DESPAWN);
-                            break;
-                        case 1:
-                            me->SummonCreature(NPC_DOCTOR_H, ThrallSpawn[26].x + rand32() % 5, ThrallSpawn[26].y + rand32() % 5, ThrallSpawn[26].z, TEMPSUMMON_DEAD_DESPAWN);
-                            break;
-                        case 2:
-                            me->SummonCreature(NPC_CHEMIST_H, ThrallSpawn[27].x + rand32() % 5, ThrallSpawn[27].y + rand32() % 5, ThrallSpawn[27].z, TEMPSUMMON_DEAD_DESPAWN);
-                            break;
+                            case 0:
+                                me->SummonCreature(NPC_TREACHEROUS_GUARDIAN_H, ThrallSpawn[25].x + rand32() % 5, ThrallSpawn[25].y + rand32() % 5, ThrallSpawn[25].z, TEMPSUMMON_DEAD_DESPAWN);
+                                break;
+                            case 1:
+                                me->SummonCreature(NPC_DOCTOR_H, ThrallSpawn[26].x + rand32() % 5, ThrallSpawn[26].y + rand32() % 5, ThrallSpawn[26].z, TEMPSUMMON_DEAD_DESPAWN);
+                                break;
+                            case 2:
+                                me->SummonCreature(NPC_CHEMIST_H, ThrallSpawn[27].x + rand32() % 5, ThrallSpawn[27].y + rand32() % 5, ThrallSpawn[27].z, TEMPSUMMON_DEAD_DESPAWN);
+                                break;
                         }
                     }
                     break;
@@ -2675,15 +2664,15 @@ public:
                     {
                         switch (urand(0, 2))
                         {
-                        case 0:
-                            me->SummonCreature(NPC_TREACHEROUS_GUARDIAN_H, ThrallSpawn[59].x + rand32() % 2, ThrallSpawn[59].y + rand32() % 2, ThrallSpawn[59].z, TEMPSUMMON_DEAD_DESPAWN);
-                            break;
-                        case 1:
-                            me->SummonCreature(NPC_DOCTOR_H, ThrallSpawn[59].x + rand32() % 2, ThrallSpawn[59].y + rand32() % 2, ThrallSpawn[59].z, TEMPSUMMON_DEAD_DESPAWN);
-                            break;
-                        case 2:
-                            me->SummonCreature(NPC_CHEMIST_H, ThrallSpawn[59].x + rand32() % 2, ThrallSpawn[59].y + rand32() % 2, ThrallSpawn[59].z, TEMPSUMMON_DEAD_DESPAWN);
-                            break;
+                            case 0:
+                                me->SummonCreature(NPC_TREACHEROUS_GUARDIAN_H, ThrallSpawn[59].x + rand32() % 2, ThrallSpawn[59].y + rand32() % 2, ThrallSpawn[59].z, TEMPSUMMON_DEAD_DESPAWN);
+                                break;
+                            case 1:
+                                me->SummonCreature(NPC_DOCTOR_H, ThrallSpawn[59].x + rand32() % 2, ThrallSpawn[59].y + rand32() % 2, ThrallSpawn[59].z, TEMPSUMMON_DEAD_DESPAWN);
+                                break;
+                            case 2:
+                                me->SummonCreature(NPC_CHEMIST_H, ThrallSpawn[59].x + rand32() % 2, ThrallSpawn[59].y + rand32() % 2, ThrallSpawn[59].z, TEMPSUMMON_DEAD_DESPAWN);
+                                break;
                         }
                     }
                     break;
@@ -2693,12 +2682,12 @@ public:
                     {
                         switch (urand(0, 1))
                         {
-                        case 0:
-                            me->SummonCreature(NPC_TREACHEROUS_GUARDIAN_H, ThrallSpawn[60].x + rand32() % 5, ThrallSpawn[60].y + rand32() % 5, ThrallSpawn[60].z, TEMPSUMMON_DEAD_DESPAWN);
-                            break;
-                        case 1:
-                            me->SummonCreature(NPC_FELGUARD_MORADEUR, ThrallSpawn[60].x + rand32() % 5, ThrallSpawn[60].y + rand32() % 5, ThrallSpawn[60].z, TEMPSUMMON_DEAD_DESPAWN);
-                            break;
+                            case 0:
+                                me->SummonCreature(NPC_TREACHEROUS_GUARDIAN_H, ThrallSpawn[60].x + rand32() % 5, ThrallSpawn[60].y + rand32() % 5, ThrallSpawn[60].z, TEMPSUMMON_DEAD_DESPAWN);
+                                break;
+                            case 1:
+                                me->SummonCreature(NPC_FELGUARD_MORADEUR, ThrallSpawn[60].x + rand32() % 5, ThrallSpawn[60].y + rand32() % 5, ThrallSpawn[60].z, TEMPSUMMON_DEAD_DESPAWN);
+                                break;
                         }
                     }
                     break;
@@ -2708,12 +2697,12 @@ public:
                     {
                         switch (urand(0, 1))
                         {
-                        case 0:
-                            me->SummonCreature(NPC_FELGUARD_MORADEUR, ThrallSpawn[61].x + rand32() % 5, ThrallSpawn[61].y + rand32() % 5, ThrallSpawn[61].z, TEMPSUMMON_DEAD_DESPAWN);
-                            break;
-                        case 1:
-                            me->SummonCreature(NPC_DREADLORD, ThrallSpawn[61].x + rand32() % 5, ThrallSpawn[61].y + rand32() % 5, ThrallSpawn[61].z, TEMPSUMMON_DEAD_DESPAWN);
-                            break;
+                            case 0:
+                                me->SummonCreature(NPC_FELGUARD_MORADEUR, ThrallSpawn[61].x + rand32() % 5, ThrallSpawn[61].y + rand32() % 5, ThrallSpawn[61].z, TEMPSUMMON_DEAD_DESPAWN);
+                                break;
+                            case 1:
+                                me->SummonCreature(NPC_DREADLORD, ThrallSpawn[61].x + rand32() % 5, ThrallSpawn[61].y + rand32() % 5, ThrallSpawn[61].z, TEMPSUMMON_DEAD_DESPAWN);
+                                break;
                         }
                     }
                     break;
@@ -2722,78 +2711,78 @@ public:
                     if (Unit* temp = me->SummonCreature(NPC_VARIMATHRAS, ThrallSpawn[63].x, ThrallSpawn[63].y, ThrallSpawn[63].z, ThrallSpawn[63].o, TEMPSUMMON_TIMED_OR_DEAD_DESPAWN, 300 * IN_MILLISECONDS))
                     {
                         ValimathrasGUID = temp->GetGUID();
-                        temp->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC | UNIT_FLAG_IMMUNE_TO_PC);
+                        temp->SetImmuneToAll(true);
                     }
                     break;
                 case 13:
                     if (Unit* temp = me->SummonCreature(NPC_VARIMATHRAS_PORTAL, ThrallSpawn[64].x, ThrallSpawn[64].y, ThrallSpawn[64].z, ThrallSpawn[64].o, TEMPSUMMON_TIMED_OR_DEAD_DESPAWN, 900 * IN_MILLISECONDS))
                         ValimathrasPortalGUID = temp->GetGUID();
                     break;
-                    // NPC_KHANOK - Inner Sunktum Spawn Left                        
+                // NPC_KHANOK - Inner Sunktum Spawn Left
                 case 14:
                     for (uint8 i = 0; i < 4; ++i)
                     {
                         switch (urand(0, 6))
                         {
-                        case 0:
-                            me->SummonCreature(NPC_FELGUARD_MORADEUR, ThrallSpawn[65].x + rand32() % 5, ThrallSpawn[65].y + rand32() % 5, ThrallSpawn[65].z, TEMPSUMMON_DEAD_DESPAWN);
-                            break;
-                        case 1:
-                            me->SummonCreature(NPC_DREADLORD, ThrallSpawn[65].x + rand32() % 5, ThrallSpawn[65].y + rand32() % 5, ThrallSpawn[65].z, TEMPSUMMON_DEAD_DESPAWN);
-                            break;
-                        case 2:
-                            me->SummonCreature(NPC_TREACHEROUS_GUARDIAN_H, ThrallSpawn[65].x + rand32() % 5, ThrallSpawn[65].y + rand32() % 5, ThrallSpawn[65].z, TEMPSUMMON_DEAD_DESPAWN);
-                            break;
-                        case 3:
-                            me->SummonCreature(NPC_DOCTOR_H, ThrallSpawn[65].x + rand32() % 5, ThrallSpawn[65].y + rand32() % 5, ThrallSpawn[65].z, TEMPSUMMON_DEAD_DESPAWN);
-                            break;
-                        case 4:
-                            me->SummonCreature(NPC_CHEMIST_H, ThrallSpawn[65].x + rand32() % 5, ThrallSpawn[65].y + rand32() % 5, ThrallSpawn[65].z, TEMPSUMMON_DEAD_DESPAWN);
-                            break;
-                        case 5:
-                            me->SummonCreature(NPC_BETRAYER_H, ThrallSpawn[65].x + rand32() % 5, ThrallSpawn[65].y + rand32() % 5, ThrallSpawn[65].z, TEMPSUMMON_DEAD_DESPAWN);
-                            break;
-                        case 6:
-                            me->SummonCreature(NPC_FELBEAST_H, ThrallSpawn[65].x + rand32() % 5, ThrallSpawn[65].y + rand32() % 5, ThrallSpawn[65].z, TEMPSUMMON_DEAD_DESPAWN);
-                            break;
+                            case 0:
+                                me->SummonCreature(NPC_FELGUARD_MORADEUR, ThrallSpawn[65].x + rand32() % 5, ThrallSpawn[65].y + rand32() % 5, ThrallSpawn[65].z, TEMPSUMMON_DEAD_DESPAWN);
+                                break;
+                            case 1:
+                                me->SummonCreature(NPC_DREADLORD, ThrallSpawn[65].x + rand32() % 5, ThrallSpawn[65].y + rand32() % 5, ThrallSpawn[65].z, TEMPSUMMON_DEAD_DESPAWN);
+                                break;
+                            case 2:
+                                me->SummonCreature(NPC_TREACHEROUS_GUARDIAN_H, ThrallSpawn[65].x + rand32() % 5, ThrallSpawn[65].y + rand32() % 5, ThrallSpawn[65].z, TEMPSUMMON_DEAD_DESPAWN);
+                                break;
+                            case 3:
+                                me->SummonCreature(NPC_DOCTOR_H, ThrallSpawn[65].x + rand32() % 5, ThrallSpawn[65].y + rand32() % 5, ThrallSpawn[65].z, TEMPSUMMON_DEAD_DESPAWN);
+                                break;
+                            case 4:
+                                me->SummonCreature(NPC_CHEMIST_H, ThrallSpawn[65].x + rand32() % 5, ThrallSpawn[65].y + rand32() % 5, ThrallSpawn[65].z, TEMPSUMMON_DEAD_DESPAWN);
+                                break;
+                            case 5:
+                                me->SummonCreature(NPC_BETRAYER_H, ThrallSpawn[65].x + rand32() % 5, ThrallSpawn[65].y + rand32() % 5, ThrallSpawn[65].z, TEMPSUMMON_DEAD_DESPAWN);
+                                break;
+                            case 6:
+                                me->SummonCreature(NPC_FELBEAST_H, ThrallSpawn[65].x + rand32() % 5, ThrallSpawn[65].y + rand32() % 5, ThrallSpawn[65].z, TEMPSUMMON_DEAD_DESPAWN);
+                                break;
                         }
                     }
                     break;
-                    // NPC_KHANOK - Inner Sunktum Spawn Right
+                // NPC_KHANOK - Inner Sunktum Spawn Right
                 case 15:
                     for (uint8 i = 0; i < 4; ++i)
                     {
                         switch (urand(0, 6))
                         {
-                        case 0:
-                            me->SummonCreature(NPC_FELGUARD_MORADEUR, ThrallSpawn[66].x + rand32() % 5, ThrallSpawn[66].y + rand32() % 5, ThrallSpawn[66].z, TEMPSUMMON_DEAD_DESPAWN);
-                            break;
-                        case 1:
-                            me->SummonCreature(NPC_DREADLORD, ThrallSpawn[66].x + rand32() % 5, ThrallSpawn[66].y + rand32() % 5, ThrallSpawn[66].z, TEMPSUMMON_DEAD_DESPAWN);
-                            break;
-                        case 2:
-                            me->SummonCreature(NPC_TREACHEROUS_GUARDIAN_H, ThrallSpawn[66].x + rand32() % 5, ThrallSpawn[66].y + rand32() % 5, ThrallSpawn[66].z, TEMPSUMMON_DEAD_DESPAWN);
-                            break;
-                        case 3:
-                            me->SummonCreature(NPC_DOCTOR_H, ThrallSpawn[66].x + rand32() % 5, ThrallSpawn[66].y + rand32() % 5, ThrallSpawn[66].z, TEMPSUMMON_DEAD_DESPAWN);
-                            break;
-                        case 4:
-                            me->SummonCreature(NPC_CHEMIST_H, ThrallSpawn[66].x + rand32() % 5, ThrallSpawn[66].y + rand32() % 5, ThrallSpawn[66].z, TEMPSUMMON_DEAD_DESPAWN);
-                            break;
-                        case 5:
-                            me->SummonCreature(NPC_BETRAYER_H, ThrallSpawn[66].x + rand32() % 5, ThrallSpawn[66].y + rand32() % 5, ThrallSpawn[66].z, TEMPSUMMON_DEAD_DESPAWN);
-                            break;
-                        case 6:
-                            me->SummonCreature(NPC_FELBEAST_H, ThrallSpawn[66].x + rand32() % 5, ThrallSpawn[66].y + rand32() % 5, ThrallSpawn[66].z, TEMPSUMMON_DEAD_DESPAWN);
-                            break;
+                            case 0:
+                                me->SummonCreature(NPC_FELGUARD_MORADEUR, ThrallSpawn[66].x + rand32() % 5, ThrallSpawn[66].y + rand32() % 5, ThrallSpawn[66].z, TEMPSUMMON_DEAD_DESPAWN);
+                                break;
+                            case 1:
+                                me->SummonCreature(NPC_DREADLORD, ThrallSpawn[66].x + rand32() % 5, ThrallSpawn[66].y + rand32() % 5, ThrallSpawn[66].z, TEMPSUMMON_DEAD_DESPAWN);
+                                break;
+                            case 2:
+                                me->SummonCreature(NPC_TREACHEROUS_GUARDIAN_H, ThrallSpawn[66].x + rand32() % 5, ThrallSpawn[66].y + rand32() % 5, ThrallSpawn[66].z, TEMPSUMMON_DEAD_DESPAWN);
+                                break;
+                            case 3:
+                                me->SummonCreature(NPC_DOCTOR_H, ThrallSpawn[66].x + rand32() % 5, ThrallSpawn[66].y + rand32() % 5, ThrallSpawn[66].z, TEMPSUMMON_DEAD_DESPAWN);
+                                break;
+                            case 4:
+                                me->SummonCreature(NPC_CHEMIST_H, ThrallSpawn[66].x + rand32() % 5, ThrallSpawn[66].y + rand32() % 5, ThrallSpawn[66].z, TEMPSUMMON_DEAD_DESPAWN);
+                                break;
+                            case 5:
+                                me->SummonCreature(NPC_BETRAYER_H, ThrallSpawn[66].x + rand32() % 5, ThrallSpawn[66].y + rand32() % 5, ThrallSpawn[66].z, TEMPSUMMON_DEAD_DESPAWN);
+                                break;
+                            case 6:
+                                me->SummonCreature(NPC_FELBEAST_H, ThrallSpawn[66].x + rand32() % 5, ThrallSpawn[66].y + rand32() % 5, ThrallSpawn[66].z, TEMPSUMMON_DEAD_DESPAWN);
+                                break;
                         }
                     }
                     break;
-                    // NPC_KHANOK - Inner Sunktum Spawn Top
+                // NPC_KHANOK - Inner Sunktum Spawn Top
                 case 16:
                     me->SummonCreature(NPC_DOOMGUARD_PILLARGER, ThrallSpawn[67].x + rand32() % 15, ThrallSpawn[67].y + rand32() % 15, ThrallSpawn[67].z + rand32() % 5, TEMPSUMMON_DEAD_DESPAWN);
                     break;
-                    // NPC_KHANOK - Inner Sunktum Spawn Middle
+                // NPC_KHANOK - Inner Sunktum Spawn Middle
                 case 17:
                     me->SummonCreature(NPC_KHANOK, ThrallSpawn[68].x, ThrallSpawn[68].y, ThrallSpawn[68].z, TEMPSUMMON_DEAD_DESPAWN);
                     break;
@@ -2805,7 +2794,7 @@ public:
                         temp->GetMotionMaster()->MovePath(NPC_WARSONG_BATTLEGUARD * 100, false);
                     }
                     break;
-                    // Valimathras Room Preparation
+                // Valimathras Room Preparation
                 case 19:
                     for (uint8 i = 0; i < 3; ++i)
                         me->SummonGameObject(GO_BLOCKED_PASSAGE, ThrallSpawn[i + 70].x, ThrallSpawn[i + 70].y, ThrallSpawn[70].z, ThrallSpawn[i + 70].o, 0.0f, 0.0f, 0.0f, 0.0f, 120 * IN_MILLISECONDS);
@@ -2813,7 +2802,7 @@ public:
                     if (Creature* temp = me->SummonCreature(NPC_VARIMATHRAS, ThrallSpawn[73].x, ThrallSpawn[73].y, ThrallSpawn[73].z, ThrallSpawn[73].o, TEMPSUMMON_TIMED_OR_DEAD_DESPAWN, 1200 * IN_MILLISECONDS))
                     {
                         ValimathrasGUID = temp->GetGUID();
-                        temp->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC | UNIT_FLAG_IMMUNE_TO_PC);
+                        temp->SetImmuneToAll(true);
                         temp->CastSpell(me, SPELL_AURA_OF_VARIMATHRAS);
                         temp->CastSpell(me, SPELL_OPENING_LEGION_PORTALS);
                         temp->AI()->Talk(SAY_CLOSE_DOOR);
@@ -2829,12 +2818,12 @@ public:
                     {
                         switch (urand(0, 1))
                         {
-                        case 0:
-                            me->SummonCreature(NPC_LEGION_INVADER, ThrallSpawn[80].x + rand32() % 5, ThrallSpawn[80].y + rand32() % 5, ThrallSpawn[80].z, TEMPSUMMON_DEAD_DESPAWN);
-                            break;
-                        case 1:
-                            me->SummonCreature(NPC_LEGION_DREADWHISPER, ThrallSpawn[81].x + rand32() % 5, ThrallSpawn[81].y + rand32() % 5, ThrallSpawn[81].z, TEMPSUMMON_DEAD_DESPAWN);
-                            break;
+                            case 0:
+                                me->SummonCreature(NPC_LEGION_INVADER, ThrallSpawn[80].x + rand32() % 5, ThrallSpawn[80].y + rand32() % 5, ThrallSpawn[80].z, TEMPSUMMON_DEAD_DESPAWN);
+                                break;
+                            case 1:
+                                me->SummonCreature(NPC_LEGION_DREADWHISPER, ThrallSpawn[81].x + rand32() % 5, ThrallSpawn[81].y + rand32() % 5, ThrallSpawn[81].z, TEMPSUMMON_DEAD_DESPAWN);
+                                break;
                         }
                     }
                     break;
@@ -2843,12 +2832,12 @@ public:
                     {
                         switch (urand(0, 1))
                         {
-                        case 0:
-                            me->SummonCreature(NPC_LEGION_INVADER, ThrallSpawn[81].x + rand32() % 5, ThrallSpawn[81].y + rand32() % 5, ThrallSpawn[81].z, TEMPSUMMON_DEAD_DESPAWN);
-                            break;
-                        case 1:
-                            me->SummonCreature(NPC_LEGION_DREADWHISPER, ThrallSpawn[80].x + rand32() % 5, ThrallSpawn[80].y + rand32() % 5, ThrallSpawn[80].z, TEMPSUMMON_DEAD_DESPAWN);
-                            break;
+                            case 0:
+                                me->SummonCreature(NPC_LEGION_INVADER, ThrallSpawn[81].x + rand32() % 5, ThrallSpawn[81].y + rand32() % 5, ThrallSpawn[81].z, TEMPSUMMON_DEAD_DESPAWN);
+                                break;
+                            case 1:
+                                me->SummonCreature(NPC_LEGION_DREADWHISPER, ThrallSpawn[80].x + rand32() % 5, ThrallSpawn[80].y + rand32() % 5, ThrallSpawn[80].z, TEMPSUMMON_DEAD_DESPAWN);
+                                break;
                         }
                     }
                     break;
@@ -3004,7 +2993,7 @@ public:
                             DoCast(me, SPELL_THRALL_BUFF);
                             JumpToNextStep(10 * IN_MILLISECONDS);
                             break;
-                            // Start Event
+                        // Start Event
                         case 11:
                             UpdateWorldState(me->GetMap(), WORLD_STATE_BATTLE_COUNTDOWN_H, 0);
                             UpdateWorldState(me->GetMap(), WORLD_STATE_BATTLE_START_H, 1);
@@ -3038,19 +3027,19 @@ public:
                             JumpToNextStep(5 * IN_MILLISECONDS);
                             break;
                         case 16:
-                        {
-                            std::list<Creature*> PlagueList;
-                            me->GetCreatureListWithEntryInGrid(PlagueList, NPC_PLAGUE_TRIGGER, 50.0f);
-                            if (!PlagueList.empty())
-                                for (std::list<Creature*>::iterator itr = PlagueList.begin(); itr != PlagueList.end(); itr++)
-                                    (*itr)->DespawnOrUnsummon();
-                            SetEscortPaused(false);
-                            SetRun(false);
-                            if (Creature* sylvanas = ObjectAccessor::GetCreature(*me, sylvanasfollowGUID))
-                                sylvanas->GetMotionMaster()->MovePath(NPC_SYLVANAS * 1000, false);
-                            JumpToNextStep(3 * IN_MILLISECONDS);
-                            break;
-                        }
+                            {
+                                std::list<Creature*> PlagueList;
+                                me->GetCreatureListWithEntryInGrid(PlagueList, NPC_PLAGUE_TRIGGER, 50.0f);
+                                if (!PlagueList.empty())
+                                    for (std::list<Creature*>::iterator itr = PlagueList.begin(); itr != PlagueList.end(); itr++)
+                                        (*itr)->DespawnOrUnsummon();
+                                SetEscortPaused(false);
+                                SetRun(false);
+                                if (Creature* sylvanas = ObjectAccessor::GetCreature(*me, sylvanasfollowGUID))
+                                    sylvanas->GetMotionMaster()->MovePath(NPC_SYLVANAS * 1000, false);
+                                JumpToNextStep(3 * IN_MILLISECONDS);
+                                break;
+                            }
                         case 17:
                             bStepping = false;
                             JumpToNextStep(0);
@@ -3061,11 +3050,11 @@ public:
                             JumpToNextStep(6 * IN_MILLISECONDS);
                             break;
                         case 19:
-                        {
-                            SpawnWave(2);
-                            JumpToNextStep(3 * IN_MILLISECONDS);
-                            break;
-                        }
+                            {
+                                SpawnWave(2);
+                                JumpToNextStep(3 * IN_MILLISECONDS);
+                                break;
+                            }
                         case 20:
                             if (Creature* valimathras = ObjectAccessor::GetCreature(*me, ValimathrasGUID))
                                 valimathras->AI()->Talk(SAY_VALIMATHRAS_INTRO_0);
@@ -3101,17 +3090,17 @@ public:
                             JumpToNextStep(1 * IN_MILLISECONDS);
                             break;
                         case 26:
-                        {
-                            Talk(THRALL_SAY_COURTYARD_3);
-                            me->CastSpell(me, SPELL_TIDAL_WAVE_SUMMON);
-                            std::list<Creature*> HelperList;
-                            me->GetCreatureListWithEntryInGrid(HelperList, NPC_SLINGER_TRIGGER, 1000.0f);
-                            if (!HelperList.empty())
-                                for (std::list<Creature*>::iterator itr = HelperList.begin(); itr != HelperList.end(); itr++)
-                                    (*itr)->DespawnOrUnsummon();
-                            JumpToNextStep(5 * IN_MILLISECONDS);
-                            break;
-                        }
+                            {
+                                Talk(THRALL_SAY_COURTYARD_3);
+                                me->CastSpell(me, SPELL_TIDAL_WAVE_SUMMON);
+                                std::list<Creature*> HelperList;
+                                me->GetCreatureListWithEntryInGrid(HelperList, NPC_SLINGER_TRIGGER, 1000.0f);
+                                if (!HelperList.empty())
+                                    for (std::list<Creature*>::iterator itr = HelperList.begin(); itr != HelperList.end(); itr++)
+                                        (*itr)->DespawnOrUnsummon();
+                                JumpToNextStep(5 * IN_MILLISECONDS);
+                                break;
+                            }
                         // Start COURTYARD_FIGHT
                         case 27:
                             FollowThrall();
@@ -3124,20 +3113,19 @@ public:
                             JumpToNextStep(0);
                             break;
                         case 28:
-                        {
-                            EnableAttack = true;
-                            DoCast(me, SPELL_HEROIC_VANGUARD, true);
-                            std::list<Creature*> HostileEndList;
-                            me->GetCreatureListWithEntryInGrid(HostileEndList, NPC_TREACHEROUS_GUARDIAN_H, 1000.0f);
-                            me->GetCreatureListWithEntryInGrid(HostileEndList, NPC_DOCTOR_H, 1000.0f);
-                            me->GetCreatureListWithEntryInGrid(HostileEndList, NPC_CHEMIST_H, 1000.0f);
-                            if (!HostileEndList.empty())
-                                for (std::list<Creature*>::iterator itr = HostileEndList.begin(); itr != HostileEndList.end(); itr++)
-                                    (*itr)->setFaction(FACTION_HOSTILE);
-                            SpawnWave(4);
-                            JumpToNextStep(10 * IN_MILLISECONDS);
-                            break;
-                        }
+                            {
+                                EnableAttack = true;
+                                DoCast(me, SPELL_HEROIC_VANGUARD, true);
+                                std::list<Creature*> HostileEndList;
+                                me->GetCreatureListWithEntryInGrid(HostileEndList, NPC_TREACHEROUS_GUARDIAN_H, 1000.0f);
+                                me->GetCreatureListWithEntryInGrid(HostileEndList, NPC_DOCTOR_H, 1000.0f);
+                                me->GetCreatureListWithEntryInGrid(HostileEndList, NPC_CHEMIST_H, 1000.0f);
+                                if (!HostileEndList.empty())
+                                    for (std::list<Creature*>::iterator itr = HostileEndList.begin(); itr != HostileEndList.end(); itr++) (*itr)->SetFaction(FACTION_MONSTER);
+                                SpawnWave(4);
+                                JumpToNextStep(10 * IN_MILLISECONDS);
+                                break;
+                            }
                         case 29:
                             SpawnWave(4);
                             JumpToNextStep(10 * IN_MILLISECONDS);
@@ -3207,27 +3195,27 @@ public:
                             bStepping = false;
                             JumpToNextStep(0 * IN_MILLISECONDS);
                             break;
-                            // End COURTYARD_FIGHT
+                        // End COURTYARD_FIGHT
                         case 46:
-                        {
-                            FollowThrall();
-                            std::list<Creature*> HostileList;
-                            me->GetCreatureListWithEntryInGrid(HostileList, NPC_TREACHEROUS_GUARDIAN_H, 1000.0f);
-                            me->GetCreatureListWithEntryInGrid(HostileList, NPC_DOCTOR_H, 1000.0f);
-                            me->GetCreatureListWithEntryInGrid(HostileList, NPC_CHEMIST_H, 1000.0f);
-                            me->GetCreatureListWithEntryInGrid(HostileList, NPC_BLIGHT_SLINGER, 1000.0f);
-                            if (!HostileList.empty())
-                                for (std::list<Creature*>::iterator itr = HostileList.begin(); itr != HostileList.end(); itr++)
-                                    (*itr)->DespawnOrUnsummon();
-                            for (uint8 i = 0; i < 7; ++i)
-                                me->SummonGameObject(GO_HORDE_BANNER, ThrallSpawn[i + 37].x, ThrallSpawn[i + 37].y, ThrallSpawn[i + 37].z, ThrallSpawn[i + 37].o, 0.0f, 0.0f, 0.0f, 0.0f, 120 * IN_MILLISECONDS);
-                            SpawnWave(6);
-                            SetEscortPaused(false);
-                            bStepping = false;
-                            SetRun(false);
-                            JumpToNextStep(0 * IN_MILLISECONDS);
-                            break;
-                        }
+                            {
+                                FollowThrall();
+                                std::list<Creature*> HostileList;
+                                me->GetCreatureListWithEntryInGrid(HostileList, NPC_TREACHEROUS_GUARDIAN_H, 1000.0f);
+                                me->GetCreatureListWithEntryInGrid(HostileList, NPC_DOCTOR_H, 1000.0f);
+                                me->GetCreatureListWithEntryInGrid(HostileList, NPC_CHEMIST_H, 1000.0f);
+                                me->GetCreatureListWithEntryInGrid(HostileList, NPC_BLIGHT_SLINGER, 1000.0f);
+                                if (!HostileList.empty())
+                                    for (std::list<Creature*>::iterator itr = HostileList.begin(); itr != HostileList.end(); itr++)
+                                        (*itr)->DespawnOrUnsummon();
+                                for (uint8 i = 0; i < 7; ++i)
+                                    me->SummonGameObject(GO_HORDE_BANNER, ThrallSpawn[i + 37].x, ThrallSpawn[i + 37].y, ThrallSpawn[i + 37].z, ThrallSpawn[i + 37].o, 0.0f, 0.0f, 0.0f, 0.0f, 120 * IN_MILLISECONDS);
+                                SpawnWave(6);
+                                SetEscortPaused(false);
+                                bStepping = false;
+                                SetRun(false);
+                                JumpToNextStep(0 * IN_MILLISECONDS);
+                                break;
+                            }
                         case 47:
                             Talk(THRALL_SAY_COURTYARD_5);
                             JumpToNextStep(5 * IN_MILLISECONDS);
@@ -3237,7 +3225,7 @@ public:
                             bStepping = false;
                             JumpToNextStep(0 * IN_MILLISECONDS);
                             break;
-                            // Elevator Event
+                        // Elevator Event
                         case 49:
                             Talk(THRALL_SAY_ELEVATOR_1);
                             JumpToNextStep(10 * IN_MILLISECONDS);
@@ -3271,7 +3259,7 @@ public:
                             SetRun(false);
                             JumpToNextStep(0 * IN_MILLISECONDS);
                             break;
-                            // Top of Undercity Discussion
+                        // Top of Undercity Discussion
                         case 55:
                             if (Creature* sylvanas = ObjectAccessor::GetCreature(*me, sylvanasfollowGUID))
                                 sylvanas->AI()->Talk(SYLVANAS_SAY_SANCTUM_1);
@@ -3291,7 +3279,7 @@ public:
                                 sylvanas->AI()->Talk(SYLVANAS_SAY_SANCTUM_3);
                             JumpToNextStep(5 * IN_MILLISECONDS);
                             break;
-                            // Top of Undercity - Fight
+                        // Top of Undercity - Fight
                         case 59:
                             SpawnWave(9);
                             JumpToNextStep(5 * IN_MILLISECONDS);
@@ -3344,7 +3332,7 @@ public:
                             SetRun(false);
                             JumpToNextStep(0 * IN_MILLISECONDS);
                             break;
-                            // KHANOK - Valimathtas Intro
+                        // KHANOK - Valimathtas Intro
                         case 70:
                             JumpToNextStep(10 * IN_MILLISECONDS);
                             break;
@@ -3380,7 +3368,7 @@ public:
                                 valimathrasportal->DespawnOrUnsummon(3 * IN_MILLISECONDS);
                             JumpToNextStep(2 * IN_MILLISECONDS);
                             break;
-                            // KHANOK - Trashspawn
+                        // KHANOK - Trashspawn
                         case 76:
                             SpawnWave(14);
                             JumpToNextStep(8 * IN_MILLISECONDS);
@@ -3454,7 +3442,7 @@ public:
                             JumpToNextStep(8 * IN_MILLISECONDS);
                             break;
                         case 94:
-                            // Spawn Boss 2 KHANOK  
+                            // Spawn Boss 2 KHANOK
                             SpawnWave(17);
                             JumpToNextStep(10 * IN_MILLISECONDS);
                             break;
@@ -3549,15 +3537,15 @@ public:
                             JumpToNextStep(6 * IN_MILLISECONDS);
                             break;
                         case 115:
-                        {
-                            std::list<GameObject*> SaronitList;
-                            GetGameObjectListWithEntryInGrid(SaronitList, me, GO_BLOCKED_PASSAGE, 80.0f);
-                            for (std::list<GameObject*>::const_iterator itr = SaronitList.begin(); itr != SaronitList.end(); ++itr)
-                                if (GameObject* saronit = (*itr))
-                                    saronit->UseDoorOrButton();
-                            JumpToNextStep(5 * IN_MILLISECONDS);
-                            break;
-                        }
+                            {
+                                std::list<GameObject*> SaronitList;
+                                GetGameObjectListWithEntryInGrid(SaronitList, me, GO_BLOCKED_PASSAGE, 80.0f);
+                                for (std::list<GameObject*>::const_iterator itr = SaronitList.begin(); itr != SaronitList.end(); ++itr)
+                                    if (GameObject* saronit = (*itr))
+                                        saronit->UseDoorOrButton();
+                                JumpToNextStep(5 * IN_MILLISECONDS);
+                                break;
+                            }
                         case 116:
                             Talk(THRALL_SAY_SANCTUM_7);
                             UpdateWorldState(me->GetMap(), WORLD_STATE_ROYAL_QUARTER_FIGHT_H, 1);
@@ -3566,7 +3554,7 @@ public:
                             bStepping = false;
                             JumpToNextStep(0 * IN_MILLISECONDS);
                             break;
-                            // Valimathras Intro
+                        // Valimathras Intro
                         case 117:
                             Talk(THRALL_SAY_THRONE_1);
                             JumpToNextStep(5 * IN_MILLISECONDS);
@@ -3661,11 +3649,11 @@ public:
                             ActivateValimathrasPortal();
                             JumpToNextStep(5 * IN_MILLISECONDS);
                             break;
-                            // Valimathras Fight
+                        // Valimathras Fight
                         case 137:
                             if (Creature* valimathras = ObjectAccessor::GetCreature(*me, ValimathrasGUID))
                             {
-                                valimathras->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC | UNIT_FLAG_IMMUNE_TO_PC);
+                                valimathras->SetImmuneToAll(false);
                                 valimathras->RemoveAura(SPELL_AURA_OF_VARIMATHRAS);
                                 valimathras->RemoveAura(SPELL_OPENING_LEGION_PORTALS);
                                 valimathras->AI()->Talk(SAY_VALIMATHRAS_ATTACK);
@@ -3676,7 +3664,7 @@ public:
                             bStepping = false;
                             JumpToNextStep(0 * IN_MILLISECONDS);
                             break;
-                            // Valimathras Won
+                        // Valimathras Won
                         case 138:
                             Talk(THRALL_SAY_THRONE_2);
                             JumpToNextStep(5 * IN_MILLISECONDS);
@@ -3734,8 +3722,7 @@ public:
                                 if (Creature* temp = me->SummonCreature(NPC_SW_SOLDIER, AllianceSpawn[i + 25].x, AllianceSpawn[i + 25].y, AllianceSpawn[i + 25].z, AllianceSpawn[i + 25].o, TEMPSUMMON_MANUAL_DESPAWN))
                                 {
                                     allianceForcesGUID[i] = temp->GetGUID();
-                                    temp->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC);
-                                    temp->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PC);
+                                    temp->SetImmuneToAll(true);
                                     temp->ApplySpellImmune(0, IMMUNITY_ID, SPELL_SYLVANAS_BUFF, true);
                                     temp->SetReactState(REACT_PASSIVE);
                                     temp->SetUInt32Value(UNIT_NPC_EMOTESTATE, EMOTE_STATE_READY2H);
@@ -3744,8 +3731,7 @@ public:
                             if (Creature* wrynn = me->SummonCreature(NPC_WRYNN, 1308.862f, 381.809f, -66.044243f, TEMPSUMMON_MANUAL_DESPAWN))
                             {
                                 WrynnGUID = wrynn->GetGUID();
-                                wrynn->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC);
-                                wrynn->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PC);
+                                wrynn->SetImmuneToAll(true);
                                 wrynn->SetUInt32Value(UNIT_NPC_EMOTESTATE, EMOTE_STATE_READY2H);
                                 wrynn->SetReactState(REACT_PASSIVE);
                                 wrynn->GetMotionMaster()->MovePoint(0, 1302.543f, 359.472f, -67.295f, true);
@@ -3753,13 +3739,12 @@ public:
                             if (Creature* jaina = me->SummonCreature(NPC_JAINA, 1308.862f, 381.809f, -66.044243f, TEMPSUMMON_MANUAL_DESPAWN))
                             {
                                 JainaGUID = jaina->GetGUID();
-                                jaina->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC);
-                                jaina->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PC);
+                                jaina->SetImmuneToAll(true);
                                 jaina->SetReactState(REACT_PASSIVE);
                             }
                             JumpToNextStep(6 * IN_MILLISECONDS);
                             break;
-                            // Wrynn Intro
+                        // Wrynn Intro
                         case 148:
                             if (Creature* wrynn = ObjectAccessor::GetCreature(*me, WrynnGUID))
                                 wrynn->AI()->Talk(WRYNN_SAY_THRONE_5);
@@ -3780,13 +3765,13 @@ public:
                                 wrynn->AI()->Talk(WRYNN_SAY_THRONE_8);
                             JumpToNextStep(6 * IN_MILLISECONDS);
                             break;
-                            // Wrynn Fight
+                        // Wrynn Fight
                         case 152:
-                            me->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC | UNIT_FLAG_IMMUNE_TO_PC);
+                            me->SetImmuneToAll(false);
                             if (Creature* wrynn = ObjectAccessor::GetCreature(*me, WrynnGUID))
                             {
-                                wrynn->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC);
-                                wrynn->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PC);
+                                wrynn->SetImmuneToNPC(false);
+                                wrynn->SetImmuneToPC(true);
                                 wrynn->SetReactState(REACT_AGGRESSIVE);
                                 wrynn->AddThreat(me, 100.0f);
                                 me->AddThreat(wrynn, 100.0f);
@@ -3797,7 +3782,7 @@ public:
                             {
                                 if (Creature* temp = ObjectAccessor::GetCreature(*me, allianceForcesGUID[i]))
                                 {
-                                    temp->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_NPC | UNIT_FLAG_IMMUNE_TO_PC);
+                                    temp->SetImmuneToAll(false);
                                     temp->SetReactState(REACT_AGGRESSIVE);
                                     temp->AddThreat(me, 100.0f);
                                     temp->AI()->AttackStart(me);
@@ -3822,17 +3807,17 @@ public:
                             JumpToNextStep(5 * IN_MILLISECONDS);
                             break;
                         case 155:
-                        {
-                            std::list<Creature*> HelperList;
-                            me->GetCreatureListWithEntryInGrid(HelperList, NPC_SW_SOLDIER, 100.0f);
-                            me->GetCreatureListWithEntryInGrid(HelperList, NPC_JAINA, 100.0f);
-                            me->GetCreatureListWithEntryInGrid(HelperList, NPC_WRYNN, 100.0f);
-                            if (!HelperList.empty())
-                                for (std::list<Creature*>::iterator itr = HelperList.begin(); itr != HelperList.end(); itr++)
-                                    (*itr)->DespawnOrUnsummon();
-                            JumpToNextStep(8 * IN_MILLISECONDS);
-                            break;
-                        }
+                            {
+                                std::list<Creature*> HelperList;
+                                me->GetCreatureListWithEntryInGrid(HelperList, NPC_SW_SOLDIER, 100.0f);
+                                me->GetCreatureListWithEntryInGrid(HelperList, NPC_JAINA, 100.0f);
+                                me->GetCreatureListWithEntryInGrid(HelperList, NPC_WRYNN, 100.0f);
+                                if (!HelperList.empty())
+                                    for (std::list<Creature*>::iterator itr = HelperList.begin(); itr != HelperList.end(); itr++)
+                                        (*itr)->DespawnOrUnsummon();
+                                JumpToNextStep(8 * IN_MILLISECONDS);
+                                break;
+                            }
                         case 156:
                             Talk(THRALL_SAY_THRONE_7);
                             SetEscortPaused(false);
@@ -3844,7 +3829,7 @@ public:
                             me->SetStandState(UNIT_STAND_STATE_SIT);
                             JumpToNextStep(3 * IN_MILLISECONDS);
                             break;
-                            // Ending
+                        // Ending
                         case 158:
                             if (Creature* saurfang = me->SummonCreature(NPC_OVERLORD_SAURFANG, 1297.574f, 347.154f, -65.027f, TEMPSUMMON_MANUAL_DESPAWN))
                             {
@@ -3870,12 +3855,12 @@ public:
                         case 161:
                             if (Creature* saurfang = ObjectAccessor::GetCreature(*me, SaurfangGUID))
                                 saurfang->AI()->Talk(SAY_SAURFANG_ARRIVAL_3);
-                            if (Map *map = me->GetMap())
+                            if (Map* map = me->GetMap())
                             {
-                                Map::PlayerList const &PlayerList = map->GetPlayers();
+                                Map::PlayerList const& PlayerList = map->GetPlayers();
                                 for (Map::PlayerList::const_iterator i = PlayerList.begin(); i != PlayerList.end(); ++i)
                                 {
-                                    if (Player *player = i->GetSource())
+                                    if (Player* player = i->GetSource())
                                     {
                                         if (me->IsInRange(player, 0.0f, 50.0f))
                                         {
@@ -3897,8 +3882,8 @@ public:
                             JumpToNextStep(5 * IN_MILLISECONDS);
                             break;
                         case 163:
-                            me->SetFlag(UNIT_NPC_FLAGS, UNIT_NPC_FLAG_GOSSIP);
-                            me->SetFlag(UNIT_NPC_FLAGS, UNIT_NPC_FLAG_QUESTGIVER);
+                            me->SetNpcFlag(UNIT_NPC_FLAG_GOSSIP);
+                            me->SetNpcFlag(UNIT_NPC_FLAG_QUESTGIVER);
                             Talk(THRALL_SAY_THRONE_11);
                             UpdateWorldState(me->GetMap(), WORLD_STATE_ROYAL_QUARTER_FIGHT_H, 0);
                             UpdateWorldState(me->GetMap(), WORLD_STATE_INNER_SANKTUM_FIGHT_H, 0);
@@ -3932,25 +3917,25 @@ public:
                 {
                     case EVENT_CHAIN_LIGHTNING:
                         DoCastVictim(SPELL_CHAIN_LIGHTNING);
-                        _events.ScheduleEvent(EVENT_CHAIN_LIGHTNING, urand(5, 8) * IN_MILLISECONDS);
+                        _events.ScheduleEvent(EVENT_CHAIN_LIGHTNING, 5s, 8s);
                         break;
                     case EVENT_LAVA_BURST:
                         DoCastVictim(SPELL_LAVA_BURST);
-                        _events.ScheduleEvent(EVENT_LAVA_BURST, urand(3, 5) * IN_MILLISECONDS);
+                        _events.ScheduleEvent(EVENT_LAVA_BURST, 3s, 5s);
                         break;
                     case EVENT_THUNDER:
                         DoCast(me, SPELL_THUNDER);
-                        _events.ScheduleEvent(EVENT_THUNDER, 15 * IN_MILLISECONDS);
+                        _events.ScheduleEvent(EVENT_THUNDER, 15s);
                         break;
                     case EVENT_AGGRO_SYLVANAS:
                         if (me->GetVictim())
                             if (Creature* sylvanas = ObjectAccessor::GetCreature(*me, sylvanasfollowGUID))
                                 sylvanas->AI()->AttackStart(me->GetVictim());
-                        _events.ScheduleEvent(EVENT_AGGRO_SYLVANAS, 2 * IN_MILLISECONDS);
+                        _events.ScheduleEvent(EVENT_AGGRO_SYLVANAS, 2s);
                         break;
                     case EVENT_THRALL_BUFF:
                         DoCast(me, SPELL_THRALL_BUFF);
-                        _events.ScheduleEvent(EVENT_THRALL_BUFF, 10 * IN_MILLISECONDS);
+                        _events.ScheduleEvent(EVENT_THRALL_BUFF, 10s);
                         break;
                     default:
                         break;
@@ -3997,12 +3982,12 @@ public:
         {
             me->SetCorpseDelay(1);
             me->SetRespawnTime(1);
-            _events.ScheduleEvent(EVENT_SUMMON_SKELETON, 20 * IN_MILLISECONDS);
-            _events.ScheduleEvent(EVENT_BLACK_ARROW, 15 * IN_MILLISECONDS);
-            _events.ScheduleEvent(EVENT_SHOOT, 5 * IN_MILLISECONDS);
-            _events.ScheduleEvent(EVENT_MULTI_SHOT, 6 * IN_MILLISECONDS);
-            _events.ScheduleEvent(EVENT_SHRIEK_OF_HIGHBORN, 3 * IN_MILLISECONDS);
-            _events.ScheduleEvent(EVENT_SYLVANAS_BUFF, 1 * IN_MILLISECONDS);
+            _events.ScheduleEvent(EVENT_SUMMON_SKELETON, 20s);
+            _events.ScheduleEvent(EVENT_BLACK_ARROW, 15s);
+            _events.ScheduleEvent(EVENT_SHOOT, 5s);
+            _events.ScheduleEvent(EVENT_MULTI_SHOT, 6s);
+            _events.ScheduleEvent(EVENT_SHRIEK_OF_HIGHBORN, 3s);
+            _events.ScheduleEvent(EVENT_SYLVANAS_BUFF, 1s);
             me->ApplySpellImmune(0, IMMUNITY_ID, SPELL_WRYNN_BUFF, true);
             me->ApplySpellImmune(0, IMMUNITY_STATE, SPELL_AURA_MOD_INCREASE_SPEED, true);
         }
@@ -4028,26 +4013,26 @@ public:
                 {
                     case EVENT_SUMMON_SKELETON:
                         DoCast(me, SPELL_SUMMON_SKELETON);
-                        _events.ScheduleEvent(EVENT_SUMMON_SKELETON, urand(20, 30) * IN_MILLISECONDS);
+                        _events.ScheduleEvent(EVENT_SUMMON_SKELETON, 20s, 30s);
                         break;
                     case EVENT_BLACK_ARROW:
                         if (Unit* victim = me->GetVictim())
                             DoCast(victim, SPELL_BLACK_ARROW);
-                        _events.ScheduleEvent(EVENT_BLACK_ARROW, urand(6, 9) * IN_MILLISECONDS);
+                        _events.ScheduleEvent(EVENT_BLACK_ARROW,6s, 9s);
                         break;
                     case EVENT_SHOOT:
                         if (Unit* victim = me->GetVictim())
                             DoCast(victim, SPELL_SHOT);
-                        _events.ScheduleEvent(EVENT_SHOOT, urand(5, 10) * IN_MILLISECONDS);
+                        _events.ScheduleEvent(EVENT_SHOOT, 5s, 10s);
                         break;
                     case EVENT_MULTI_SHOT:
                         if (Unit* victim = me->GetVictim())
                             DoCast(victim, SPELL_MULTI_SHOT);
-                        _events.ScheduleEvent(EVENT_MULTI_SHOT, urand(10, 13) * IN_MILLISECONDS);
+                        _events.ScheduleEvent(EVENT_MULTI_SHOT, 10s, 13s);
                         break;
                     case EVENT_SHRIEK_OF_HIGHBORN:
                         DoCastVictim(SPELL_SHRIEK_OF_HIGHBORN);
-                        _events.ScheduleEvent(EVENT_SHRIEK_OF_HIGHBORN, 3 * IN_MILLISECONDS);
+                        _events.ScheduleEvent(EVENT_SHRIEK_OF_HIGHBORN, 3s);
                         break;
                     case EVENT_SYLVANAS_BUFF:
                         DoCast(me, SPELL_SYLVANAS_BUFF, true);
@@ -4085,5 +4070,5 @@ void AddSC_undercity()
     new npc_jaina_proudmoore_bfu();
     new npc_lady_sylvanas_windrunner_bfu();
     new boss_blight_worm();
-    new spell_blight_worm_ingest();
+    RegisterSpellScript(spell_blight_worm_ingest);
 }

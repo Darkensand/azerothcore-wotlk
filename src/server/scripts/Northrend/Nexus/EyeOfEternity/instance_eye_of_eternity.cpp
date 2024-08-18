@@ -1,12 +1,25 @@
 /*
- * Originally written by Pussywizard - Copyright (C) 2016+ AzerothCore <www.azerothcore.org>, released under GNU AGPL v3 license: https://github.com/azerothcore/azerothcore-wotlk/blob/master/LICENSE-AGPL3
-*/
+ * This file is part of the AzerothCore Project. See AUTHORS file for Copyright information
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License as published by the
+ * Free Software Foundation; either version 3 of the License, or (at your
+ * option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
 
-#include "ScriptMgr.h"
-#include "ScriptedCreature.h"
-#include "eye_of_eternity.h"
-#include "Vehicle.h"
+#include "InstanceMapScript.h"
 #include "Player.h"
+#include "ScriptedCreature.h"
+#include "Vehicle.h"
+#include "eye_of_eternity.h"
 
 bool EoEDrakeEnterVehicleEvent::Execute(uint64 /*eventTime*/, uint32 /*updateTime*/)
 {
@@ -25,7 +38,7 @@ class instance_eye_of_eternity : public InstanceMapScript
 public:
     instance_eye_of_eternity() : InstanceMapScript("instance_eye_of_eternity", 616) { }
 
-    InstanceScript* GetInstanceScript(InstanceMap* pMap) const
+    InstanceScript* GetInstanceScript(InstanceMap* pMap) const override
     {
         return new instance_eye_of_eternity_InstanceMapScript(pMap);
     }
@@ -37,34 +50,30 @@ public:
         uint32 EncounterStatus;
         std::string str_data;
 
-        uint64 NPC_MalygosGUID;
-        uint64 GO_IrisGUID;
-        uint64 GO_ExitPortalGUID;
-        uint64 GO_PlatformGUID;
+        ObjectGuid NPC_MalygosGUID;
+        ObjectGuid GO_IrisGUID;
+        ObjectGuid GO_ExitPortalGUID;
+        ObjectGuid GO_PlatformGUID;
         bool bPokeAchiev;
 
-        void Initialize()
+        void Initialize() override
         {
             EncounterStatus = NOT_STARTED;
 
-            NPC_MalygosGUID = 0;
-            GO_IrisGUID = 0;
-            GO_ExitPortalGUID = 0;
-            GO_PlatformGUID = 0;
             bPokeAchiev = false;
         }
-        
-        bool IsEncounterInProgress() const
+
+        bool IsEncounterInProgress() const override
         {
             return EncounterStatus == IN_PROGRESS;
         }
 
-        void OnPlayerEnter(Player* pPlayer)
+        void OnPlayerEnter(Player* pPlayer) override
         {
             if (EncounterStatus == DONE)
             {
                 // destroy platform, hide iris (actually ensure, done at loading, but doesn't always work
-                ProcessEvent(NULL, 20158);
+                ProcessEvent(nullptr, 20158);
                 if (GameObject* go = instance->GetGameObject(GO_IrisGUID))
                     if (go->GetPhaseMask() != 2)
                         go->SetPhaseMask(2, true);
@@ -75,10 +84,10 @@ public:
                     if (!pPlayer->IsAlive())
                         return;
 
-                    if (Creature* c = pPlayer->SummonCreature(NPC_WYRMREST_SKYTALON, pPlayer->GetPositionX(), pPlayer->GetPositionY(), pPlayer->GetPositionZ()-20.0f, 0.0f, TEMPSUMMON_MANUAL_DESPAWN, 0))
+                    if (Creature* c = pPlayer->SummonCreature(NPC_WYRMREST_SKYTALON, pPlayer->GetPositionX(), pPlayer->GetPositionY(), pPlayer->GetPositionZ() - 20.0f, 0.0f, TEMPSUMMON_MANUAL_DESPAWN, 0))
                     {
                         c->SetCanFly(true);
-                        c->setFaction(pPlayer->getFaction());
+                        c->SetFaction(pPlayer->GetFaction());
                         //pPlayer->CastCustomSpell(60683, SPELLVALUE_BASE_POINT0, 1, c, true);
                         c->m_Events.AddEvent(new EoEDrakeEnterVehicleEvent(*c, pPlayer->GetGUID()), c->m_Events.CalculateTime(500));
                     }
@@ -86,7 +95,7 @@ public:
             }
         }
 
-        void OnCreatureCreate(Creature* creature)
+        void OnCreatureCreate(Creature* creature) override
         {
             switch(creature->GetEntry())
             {
@@ -96,7 +105,7 @@ public:
             }
         }
 
-        void OnGameObjectCreate(GameObject* go)
+        void OnGameObjectCreate(GameObject* go) override
         {
             switch(go->GetEntry())
             {
@@ -113,7 +122,7 @@ public:
             }
         }
 
-        void SetData(uint32 type, uint32 data)
+        void SetData(uint32 type, uint32 data) override
         {
             switch(type)
             {
@@ -138,7 +147,7 @@ public:
                                 go->SetPhaseMask(1, true);
                             if (GameObject* go = instance->GetGameObject(GO_PlatformGUID))
                             {
-                                go->SetDestructibleState(GO_DESTRUCTIBLE_REBUILDING, NULL, true);
+                                go->SetDestructibleState(GO_DESTRUCTIBLE_REBUILDING, nullptr, true);
                                 go->EnableCollision(true);
                             }
                             break;
@@ -150,8 +159,8 @@ public:
                             if (GameObject* go = instance->GetGameObject(GO_ExitPortalGUID))
                                 go->SetPhaseMask(1, true);
                             if (Creature* c = instance->GetCreature(NPC_MalygosGUID))
-                                if (c->SummonCreature(NPC_ALEXSTRASZA, 798.0f, 1268.0f, 299.0f, 2.45f ,TEMPSUMMON_TIMED_DESPAWN, 604800000))
-                            break;
+                                if (c->SummonCreature(NPC_ALEXSTRASZA, 798.0f, 1268.0f, 299.0f, 2.45f, TEMPSUMMON_TIMED_DESPAWN, 604800000))
+                                    break;
                     }
                     if (data == DONE)
                         SaveToDB();
@@ -173,16 +182,18 @@ public:
             }
         }
 
-        uint64 GetData64(uint32 type) const
+        ObjectGuid GetGuidData(uint32 type) const override
         {
             switch(type)
             {
-                case DATA_MALYGOS_GUID:         return NPC_MalygosGUID;
+                case DATA_MALYGOS_GUID:
+                    return NPC_MalygosGUID;
             }
-            return 0;
+
+            return ObjectGuid::Empty;
         }
 
-        void ProcessEvent(WorldObject* /*unit*/, uint32 eventId)
+        void ProcessEvent(WorldObject* /*unit*/, uint32 eventId) override
         {
             switch(eventId)
             {
@@ -197,54 +208,30 @@ public:
             }
         }
 
-        std::string GetSaveData()
+        void ReadSaveDataMore(std::istringstream& data) override
         {
-            OUT_SAVE_INST_DATA;
-            std::ostringstream saveStream;
-            saveStream << "E E " << EncounterStatus;
-            str_data = saveStream.str();
-            OUT_SAVE_INST_DATA_COMPLETE;
-            return str_data;
+            data >> EncounterStatus;
+
+            switch (EncounterStatus)
+            {
+                case IN_PROGRESS:
+                    EncounterStatus = NOT_STARTED;
+                    break;
+                case DONE:
+                    // destroy platform, hide iris
+                    ProcessEvent(nullptr, 20158);
+                    if (GameObject* go = instance->GetGameObject(GO_IrisGUID))
+                        go->SetPhaseMask(2, true);
+                    break;
+            }
         }
 
-        void Load(const char* in)
+        void WriteSaveDataMore(std::ostringstream& data) override
         {
-            if( !in )
-            {
-                OUT_LOAD_INST_DATA_FAIL;
-                return;
-            }
-
-            OUT_LOAD_INST_DATA(in);
-
-            char dataHead1, dataHead2;
-            uint32 data0;
-            std::istringstream loadStream(in);
-            loadStream >> dataHead1 >> dataHead2 >> data0;
-
-            if( dataHead1 == 'E' && dataHead2 == 'E' )
-            {
-                EncounterStatus = data0;
-                switch(EncounterStatus)
-                {
-                    case IN_PROGRESS:
-                        EncounterStatus = NOT_STARTED;
-                        break;
-                    case DONE:
-                        // destroy platform, hide iris
-                        ProcessEvent(NULL, 20158);
-                        if (GameObject* go = instance->GetGameObject(GO_IrisGUID))
-                            go->SetPhaseMask(2, true);
-                        break;
-                }
-            }
-            else
-                OUT_LOAD_INST_DATA_FAIL;
-
-            OUT_LOAD_INST_DATA_COMPLETE;
+            data << EncounterStatus;
         }
 
-        bool CheckAchievementCriteriaMeet(uint32 criteria_id, Player const* source, Unit const*  /*target*/, uint32  /*miscvalue1*/)
+        bool CheckAchievementCriteriaMeet(uint32 criteria_id, Player const* source, Unit const*  /*target*/, uint32  /*miscvalue1*/) override
         {
             switch(criteria_id)
             {
@@ -264,3 +251,4 @@ void AddSC_instance_eye_of_eternity()
 {
     new instance_eye_of_eternity();
 }
+

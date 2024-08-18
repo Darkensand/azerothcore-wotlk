@@ -1,11 +1,28 @@
 /*
- * Originally written by Xinef - Copyright (C) 2016+ AzerothCore <www.azerothcore.org>, released under GNU AGPL v3 license: https://github.com/azerothcore/azerothcore-wotlk/blob/master/LICENSE-AGPL3
+ * This file is part of the AzerothCore Project. See AUTHORS file for Copyright information
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License as published by the
+ * Free Software Foundation; either version 3 of the License, or (at your
+ * option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "ScriptMgr.h"
+#include "AreaTriggerScript.h"
+#include "CreatureScript.h"
+#include "Player.h"
 #include "ScriptedCreature.h"
-#include "sunwell_plateau.h"
 #include "SpellInfo.h"
+#include "SpellScript.h"
+#include "SpellScriptLoader.h"
+#include "sunwell_plateau.h"
 
 enum Quotes
 {
@@ -56,7 +73,7 @@ enum Misc
 
     EVENT_SPELL_SHADOW_BLADES   = 1,
     EVENT_SPELL_SHADOW_NOVA     = 2,
-    EVENT_SPELL_CONFOUNDING_BLOW= 3,
+    EVENT_SPELL_CONFOUNDING_BLOW = 3,
     EVENT_SHADOW_IMAGE          = 4,
     EVENT_SPELL_ENRAGE          = 5,
     EVENT_SPELL_CONFLAGRATION   = 6,
@@ -75,7 +92,7 @@ public:
         boss_sacrolashAI(Creature* creature) : BossAI(creature, DATA_EREDAR_TWINS) {}
 
         bool sisterDied;
-        void Reset()
+        void Reset() override
         {
             me->CastSpell(me, SPELL_SHADOWFORM, true);
             sisterDied = false;
@@ -83,7 +100,7 @@ public:
             me->SetLootMode(0);
         }
 
-        void DoAction(int32 param)
+        void DoAction(int32 param) override
         {
             if (param == ACTION_SISTER_DIED)
             {
@@ -94,26 +111,26 @@ public:
 
                 uint32 timer = events.GetNextEventTime(EVENT_SPELL_SHADOW_NOVA);
                 events.CancelEvent(EVENT_SPELL_SHADOW_NOVA);
-                events.ScheduleEvent(EVENT_SPELL_CONFLAGRATION, timer-events.GetTimer());
+                events.ScheduleEvent(EVENT_SPELL_CONFLAGRATION, timer - events.GetTimer());
             }
         }
 
-        void EnterEvadeMode()
+        void EnterEvadeMode(EvadeReason why) override
         {
-            BossAI::EnterEvadeMode();
-            if (Creature* alythess = ObjectAccessor::GetCreature(*me, instance->GetData64(NPC_GRAND_WARLOCK_ALYTHESS)))
+            BossAI::EnterEvadeMode(why);
+            if (Creature* alythess = ObjectAccessor::GetCreature(*me, instance->GetGuidData(NPC_GRAND_WARLOCK_ALYTHESS)))
             {
                 if (!alythess->IsAlive())
                     alythess->Respawn(true);
                 else if (!alythess->IsInEvadeMode())
-                    alythess->AI()->EnterEvadeMode();
+                    alythess->AI()->EnterEvadeMode(why);
             }
         }
 
-        void EnterCombat(Unit* who)
+        void JustEngagedWith(Unit* who) override
         {
-            BossAI::EnterCombat(who);
-            if (Creature* alythess = ObjectAccessor::GetCreature(*me, instance->GetData64(NPC_GRAND_WARLOCK_ALYTHESS)))
+            BossAI::JustEngagedWith(who);
+            if (Creature* alythess = ObjectAccessor::GetCreature(*me, instance->GetGuidData(NPC_GRAND_WARLOCK_ALYTHESS)))
                 if (alythess->IsAlive() && !alythess->IsInCombat())
                     alythess->AI()->AttackStart(who);
 
@@ -124,13 +141,13 @@ public:
             events.ScheduleEvent(EVENT_SPELL_ENRAGE, 360000);
         }
 
-        void KilledUnit(Unit* victim)
+        void KilledUnit(Unit* victim) override
         {
-            if (victim->GetTypeId() == TYPEID_PLAYER && urand(0,1))
+            if (victim->GetTypeId() == TYPEID_PLAYER && urand(0, 1))
                 Talk(YELL_SAC_KILL);
         }
 
-        void JustDied(Unit* /*killer*/)
+        void JustDied(Unit* /*killer*/) override
         {
             events.Reset();
             summons.DespawnAll();
@@ -140,21 +157,21 @@ public:
                 Talk(YELL_SAC_DEAD);
                 instance->SetBossState(DATA_EREDAR_TWINS, DONE);
             }
-            else if (Creature* alythess = ObjectAccessor::GetCreature(*me, instance->GetData64(NPC_GRAND_WARLOCK_ALYTHESS)))
+            else if (Creature* alythess = ObjectAccessor::GetCreature(*me, instance->GetGuidData(NPC_GRAND_WARLOCK_ALYTHESS)))
                 alythess->AI()->DoAction(ACTION_SISTER_DIED);
         }
 
-        void JustSummoned(Creature* summon)
+        void JustSummoned(Creature* summon) override
         {
             summons.Summon(summon);
-            if (Unit* target = SelectTarget(SELECT_TARGET_RANDOM, 0, 50.0f, true))
+            if (Unit* target = SelectTarget(SelectTargetMethod::Random, 0, 50.0f, true))
             {
                 summon->AI()->AttackStart(target);
                 summon->AddThreat(target, 10000000);
             }
         }
 
-        void UpdateAI(uint32 diff)
+        void UpdateAI(uint32 diff) override
         {
             if (!UpdateVictim())
                 return;
@@ -178,38 +195,38 @@ public:
                     events.ScheduleEvent(EVENT_SPELL_SHADOW_BLADES, 10000);
                     break;
                 case EVENT_SPELL_SHADOW_NOVA:
-                {
-                    Unit* target = SelectTarget(SELECT_TARGET_TOPAGGRO, 1, 100.0f);
-                    if (!target)
-                        target = me->GetVictim();
-                    Talk(EMOTE_SHADOW_NOVA, target);
-                    Talk(YELL_SHADOW_NOVA);
-                    me->CastSpell(target, SPELL_SHADOW_NOVA, false);
-                    events.ScheduleEvent(EVENT_SPELL_SHADOW_NOVA, urand(30000, 35000));
-                    break;
-                }
+                    {
+                        Unit* target = SelectTarget(SelectTargetMethod::MaxThreat, 1, 100.0f);
+                        if (!target)
+                            target = me->GetVictim();
+                        Talk(EMOTE_SHADOW_NOVA, target);
+                        Talk(YELL_SHADOW_NOVA);
+                        me->CastSpell(target, SPELL_SHADOW_NOVA, false);
+                        events.ScheduleEvent(EVENT_SPELL_SHADOW_NOVA, urand(30000, 35000));
+                        break;
+                    }
                 case EVENT_SHADOW_IMAGE:
                     me->SummonCreature(NPC_SHADOW_IMAGE, me->GetPositionX(), me->GetPositionY(), me->GetPositionZ(), me->GetOrientation(), TEMPSUMMON_TIMED_DESPAWN, 12000);
                     events.ScheduleEvent(EVENT_SHADOW_IMAGE, 6000);
                     break;
                 case EVENT_SPELL_CONFLAGRATION:
-                {
-                    Unit* target = SelectTarget(SELECT_TARGET_TOPAGGRO, 1, 100.0f);
-                    if (!target)
-                        target = me->GetVictim();
-                    me->CastSpell(target, SPELL_CONFLAGRATION, false);
-                    events.ScheduleEvent(EVENT_SPELL_CONFLAGRATION, urand(30000, 35000));
-                    break;
-                }   
+                    {
+                        Unit* target = SelectTarget(SelectTargetMethod::MaxThreat, 1, 100.0f);
+                        if (!target)
+                            target = me->GetVictim();
+                        me->CastSpell(target, SPELL_CONFLAGRATION, false);
+                        events.ScheduleEvent(EVENT_SPELL_CONFLAGRATION, urand(30000, 35000));
+                        break;
+                    }
             }
 
             DoMeleeAttackIfReady();
         }
     };
 
-    CreatureAI* GetAI(Creature* creature) const
+    CreatureAI* GetAI(Creature* creature) const override
     {
-        return GetInstanceAI<boss_sacrolashAI>(creature);
+        return GetSunwellPlateauAI<boss_sacrolashAI>(creature);
     };
 };
 
@@ -223,7 +240,7 @@ public:
         boss_alythessAI(Creature* creature) : BossAI(creature, DATA_EREDAR_TWINS) { }
 
         bool sisterDied;
-        void Reset()
+        void Reset() override
         {
             me->CastSpell(me, SPELL_FIREFORM, true);
             sisterDied = false;
@@ -231,7 +248,7 @@ public:
             me->SetLootMode(0);
         }
 
-        void DoAction(int32 param)
+        void DoAction(int32 param) override
         {
             if (param == ACTION_SISTER_DIED)
             {
@@ -242,26 +259,26 @@ public:
 
                 uint32 timer = events.GetNextEventTime(EVENT_SPELL_CONFLAGRATION);
                 events.CancelEvent(EVENT_SPELL_CONFLAGRATION);
-                events.ScheduleEvent(EVENT_SPELL_SHADOW_NOVA, timer-events.GetTimer());
+                events.ScheduleEvent(EVENT_SPELL_SHADOW_NOVA, timer - events.GetTimer());
             }
         }
 
-        void EnterEvadeMode()
+        void EnterEvadeMode(EvadeReason why) override
         {
-            BossAI::EnterEvadeMode();
-            if (Creature* scorlash = ObjectAccessor::GetCreature(*me, instance->GetData64(NPC_LADY_SACROLASH)))
+            BossAI::EnterEvadeMode(why);
+            if (Creature* scorlash = ObjectAccessor::GetCreature(*me, instance->GetGuidData(NPC_LADY_SACROLASH)))
             {
                 if (!scorlash->IsAlive())
                     scorlash->Respawn(true);
                 else if (!scorlash->IsInEvadeMode())
-                    scorlash->AI()->EnterEvadeMode();
+                    scorlash->AI()->EnterEvadeMode(why);
             }
         }
 
-        void EnterCombat(Unit* who)
+        void JustEngagedWith(Unit* who) override
         {
-            BossAI::EnterCombat(who);
-            if (Creature* scorlash = ObjectAccessor::GetCreature(*me, instance->GetData64(NPC_LADY_SACROLASH)))
+            BossAI::JustEngagedWith(who);
+            if (Creature* scorlash = ObjectAccessor::GetCreature(*me, instance->GetGuidData(NPC_LADY_SACROLASH)))
                 if (scorlash->IsAlive() && !scorlash->IsInCombat())
                     scorlash->AI()->AttackStart(who);
 
@@ -272,13 +289,13 @@ public:
             events.ScheduleEvent(EVENT_SPELL_ENRAGE, 360000);
         }
 
-        void KilledUnit(Unit* victim)
+        void KilledUnit(Unit* victim) override
         {
-            if (victim->GetTypeId() == TYPEID_PLAYER && urand(0,1))
+            if (victim->GetTypeId() == TYPEID_PLAYER && urand(0, 1))
                 Talk(YELL_SAC_KILL);
         }
 
-        void JustDied(Unit* /*killer*/)
+        void JustDied(Unit* /*killer*/) override
         {
             events.Reset();
             summons.DespawnAll();
@@ -288,11 +305,11 @@ public:
                 Talk(YELL_SAC_DEAD);
                 instance->SetBossState(DATA_EREDAR_TWINS, DONE);
             }
-            else if (Creature* scorlash = ObjectAccessor::GetCreature(*me, instance->GetData64(NPC_LADY_SACROLASH)))
+            else if (Creature* scorlash = ObjectAccessor::GetCreature(*me, instance->GetGuidData(NPC_LADY_SACROLASH)))
                 scorlash->AI()->DoAction(ACTION_SISTER_DIED);
         }
 
-        void UpdateAI(uint32 diff)
+        void UpdateAI(uint32 diff) override
         {
             if (!UpdateVictim())
                 return;
@@ -320,195 +337,171 @@ public:
                     events.ScheduleEvent(EVENT_SPELL_BLAZE, 3800);
                     break;
                 case EVENT_SPELL_SHADOW_NOVA:
-                {
-                    Unit* target = SelectTarget(SELECT_TARGET_TOPAGGRO, 1, 100.0f);
-                    if (!target)
-                        target = me->GetVictim();
-                    me->CastSpell(target, SPELL_SHADOW_NOVA, false);
-                    events.ScheduleEvent(EVENT_SPELL_SHADOW_NOVA, urand(30000, 35000));
-                    break;
-                }
+                    {
+                        Unit* target = SelectTarget(SelectTargetMethod::MaxThreat, 1, 100.0f);
+                        if (!target)
+                            target = me->GetVictim();
+                        me->CastSpell(target, SPELL_SHADOW_NOVA, false);
+                        events.ScheduleEvent(EVENT_SPELL_SHADOW_NOVA, urand(30000, 35000));
+                        break;
+                    }
                 case EVENT_SPELL_CONFLAGRATION:
-                {
-                    Unit* target = SelectTarget(SELECT_TARGET_TOPAGGRO, 1, 100.0f);
-                    if (!target)
-                        target = me->GetVictim();
-                    Talk(EMOTE_CONFLAGRATION, target);
-                    Talk(YELL_CANFLAGRATION);
-                    me->CastSpell(target, SPELL_CONFLAGRATION, false);
-                    events.ScheduleEvent(EVENT_SPELL_CONFLAGRATION, urand(30000, 35000));
-                    break;
-                }   
+                    {
+                        Unit* target = SelectTarget(SelectTargetMethod::MaxThreat, 1, 100.0f);
+                        if (!target)
+                            target = me->GetVictim();
+                        Talk(EMOTE_CONFLAGRATION, target);
+                        Talk(YELL_CANFLAGRATION);
+                        me->CastSpell(target, SPELL_CONFLAGRATION, false);
+                        events.ScheduleEvent(EVENT_SPELL_CONFLAGRATION, urand(30000, 35000));
+                        break;
+                    }
             }
 
             DoMeleeAttackIfReady();
         }
     };
 
-    CreatureAI* GetAI(Creature* creature) const
+    CreatureAI* GetAI(Creature* creature) const override
     {
-        return GetInstanceAI<boss_alythessAI>(creature);
+        return GetSunwellPlateauAI<boss_alythessAI>(creature);
     };
 };
 
-class spell_eredar_twins_apply_dark_touched : public SpellScriptLoader
+class spell_eredar_twins_apply_dark_touched : public SpellScript
 {
-    public:
-        spell_eredar_twins_apply_dark_touched() : SpellScriptLoader("spell_eredar_twins_apply_dark_touched") { }
+    PrepareSpellScript(spell_eredar_twins_apply_dark_touched);
 
-        class spell_eredar_twins_apply_dark_touched_SpellScript : public SpellScript
-        {
-            PrepareSpellScript(spell_eredar_twins_apply_dark_touched_SpellScript);
+    bool Validate(SpellInfo const* /*spellInfo*/) override
+    {
+        return ValidateSpellInfo({ SPELL_DARK_TOUCHED });
+    }
 
-            void HandleApplyTouch()
-            {
-                if (Player* target = GetHitPlayer())
-                    target->CastSpell(target, SPELL_DARK_TOUCHED, true);
-            }
+    void HandleApplyTouch()
+    {
+        if (Player* target = GetHitPlayer())
+            target->CastSpell(target, SPELL_DARK_TOUCHED, true);
+    }
 
-            void Register()
-            {
-                AfterHit += SpellHitFn(spell_eredar_twins_apply_dark_touched_SpellScript::HandleApplyTouch);
-            }
-        };
-
-        SpellScript* GetSpellScript() const
-        {
-            return new spell_eredar_twins_apply_dark_touched_SpellScript();
-        }
+    void Register() override
+    {
+        AfterHit += SpellHitFn(spell_eredar_twins_apply_dark_touched::HandleApplyTouch);
+    }
 };
 
-class spell_eredar_twins_apply_flame_touched : public SpellScriptLoader
+class spell_eredar_twins_apply_flame_touched : public SpellScript
 {
-    public:
-        spell_eredar_twins_apply_flame_touched() : SpellScriptLoader("spell_eredar_twins_apply_flame_touched") { }
+    PrepareSpellScript(spell_eredar_twins_apply_flame_touched);
 
-        class spell_eredar_twins_apply_flame_touched_SpellScript : public SpellScript
-        {
-            PrepareSpellScript(spell_eredar_twins_apply_flame_touched_SpellScript);
+    bool Validate(SpellInfo const* /*spellInfo*/) override
+    {
+        return ValidateSpellInfo({ SPELL_FLAME_TOUCHED });
+    }
 
-            void HandleApplyTouch()
-            {
-                if (Player* target = GetHitPlayer())
-                    target->CastSpell(target, SPELL_FLAME_TOUCHED, true);
-            }
+    void HandleApplyTouch()
+    {
+        if (Player* target = GetHitPlayer())
+            target->CastSpell(target, SPELL_FLAME_TOUCHED, true);
+    }
 
-            void Register()
-            {
-                AfterHit += SpellHitFn(spell_eredar_twins_apply_flame_touched_SpellScript::HandleApplyTouch);
-            }
-        };
-
-        SpellScript* GetSpellScript() const
-        {
-            return new spell_eredar_twins_apply_flame_touched_SpellScript();
-        }
+    void Register() override
+    {
+        AfterHit += SpellHitFn(spell_eredar_twins_apply_flame_touched::HandleApplyTouch);
+    }
 };
 
-class spell_eredar_twins_handle_touch : public SpellScriptLoader
+class spell_eredar_twins_handle_touch : public SpellScript
 {
-    public:
-        spell_eredar_twins_handle_touch() : SpellScriptLoader("spell_eredar_twins_handle_touch") { }
+    PrepareSpellScript(spell_eredar_twins_handle_touch);
 
-        class spell_eredar_twins_handle_touch_SpellScript : public SpellScript
+    bool Validate(SpellInfo const* /*spellInfo*/) override
+    {
+        return ValidateSpellInfo({ SPELL_DARK_FLAME, SPELL_FLAME_TOUCHED, SPELL_DARK_TOUCHED });
+    }
+
+    SpellCastResult CheckCast()
+    {
+        if (GetCaster()->HasAura(SPELL_DARK_FLAME))
+            return SPELL_FAILED_DONT_REPORT;
+
+        if (GetSpellInfo()->Id == SPELL_DARK_TOUCHED)
         {
-            PrepareSpellScript(spell_eredar_twins_handle_touch_SpellScript);
-
-            SpellCastResult CheckCast()
+            if (GetCaster()->HasAura(SPELL_FLAME_TOUCHED))
             {
-                if (GetCaster()->HasAura(SPELL_DARK_FLAME))
-                    return SPELL_FAILED_DONT_REPORT;
-
-                if (GetSpellInfo()->Id == SPELL_DARK_TOUCHED)
-                {
-                    if (GetCaster()->HasAura(SPELL_FLAME_TOUCHED))
-                    {
-                        GetCaster()->RemoveAurasDueToSpell(SPELL_FLAME_TOUCHED);
-                        GetCaster()->CastSpell(GetCaster(), SPELL_DARK_FLAME, true);
-                        return SPELL_FAILED_DONT_REPORT;
-                    }
-                }
-                else // if (m_spellInfo->Id == SPELL_FLAME_TOUCHED)
-                {
-                    if (GetCaster()->HasAura(SPELL_DARK_TOUCHED))
-                    {
-                        GetCaster()->RemoveAurasDueToSpell(SPELL_DARK_TOUCHED);
-                        GetCaster()->CastSpell(GetCaster(), SPELL_DARK_FLAME, true);
-                        return SPELL_FAILED_DONT_REPORT;
-                    }
-                }
-                return SPELL_CAST_OK;
+                GetCaster()->RemoveAurasDueToSpell(SPELL_FLAME_TOUCHED);
+                GetCaster()->CastSpell(GetCaster(), SPELL_DARK_FLAME, true);
+                return SPELL_FAILED_DONT_REPORT;
             }
-
-            void Register()
-            {
-                OnCheckCast += SpellCheckCastFn(spell_eredar_twins_handle_touch_SpellScript::CheckCast);
-            }
-        };
-
-        SpellScript* GetSpellScript() const
-        {
-            return new spell_eredar_twins_handle_touch_SpellScript();
         }
+        else // if (m_spellInfo->Id == SPELL_FLAME_TOUCHED)
+        {
+            if (GetCaster()->HasAura(SPELL_DARK_TOUCHED))
+            {
+                GetCaster()->RemoveAurasDueToSpell(SPELL_DARK_TOUCHED);
+                GetCaster()->CastSpell(GetCaster(), SPELL_DARK_FLAME, true);
+                return SPELL_FAILED_DONT_REPORT;
+            }
+        }
+        return SPELL_CAST_OK;
+    }
+
+    void Register() override
+    {
+        OnCheckCast += SpellCheckCastFn(spell_eredar_twins_handle_touch::CheckCast);
+    }
 };
 
-class spell_eredar_twins_blaze : public SpellScriptLoader
+class spell_eredar_twins_blaze : public SpellScript
 {
-    public:
-        spell_eredar_twins_blaze() : SpellScriptLoader("spell_eredar_twins_blaze") { }
+    PrepareSpellScript(spell_eredar_twins_blaze);
 
-        class spell_eredar_twins_blaze_SpellScript : public SpellScript
-        {
-            PrepareSpellScript(spell_eredar_twins_blaze_SpellScript);
+    bool Validate(SpellInfo const* /*spellInfo*/) override
+    {
+        return ValidateSpellInfo({ SPELL_BLAZE_SUMMON });
+    }
 
-            void HandleScript(SpellEffIndex effIndex)
-            {
-                PreventHitDefaultEffect(effIndex);
-                if (Unit* target = GetHitUnit())
-                    target->CastSpell(target, SPELL_BLAZE_SUMMON, true);
-            }
+    void HandleScript(SpellEffIndex effIndex)
+    {
+        PreventHitDefaultEffect(effIndex);
+        if (Unit* target = GetHitUnit())
+            target->CastSpell(target, SPELL_BLAZE_SUMMON, true);
+    }
 
-            void Register()
-            {
-                OnEffectHitTarget += SpellEffectFn(spell_eredar_twins_blaze_SpellScript::HandleScript, EFFECT_1, SPELL_EFFECT_SCRIPT_EFFECT);
-            }
-        };
-
-        SpellScript* GetSpellScript() const
-        {
-            return new spell_eredar_twins_blaze_SpellScript();
-        }
+    void Register() override
+    {
+        OnEffectHitTarget += SpellEffectFn(spell_eredar_twins_blaze::HandleScript, EFFECT_1, SPELL_EFFECT_SCRIPT_EFFECT);
+    }
 };
 
 class AreaTrigger_at_sunwell_eredar_twins : public AreaTriggerScript
 {
-    public:
+public:
+    AreaTrigger_at_sunwell_eredar_twins() : AreaTriggerScript("at_sunwell_eredar_twins") {}
 
-        AreaTrigger_at_sunwell_eredar_twins() : AreaTriggerScript("at_sunwell_eredar_twins") {}
+    bool OnTrigger(Player* player, AreaTrigger const* /*trigger*/) override
+    {
+        if (InstanceScript* instance = player->GetInstanceScript())
+            if (instance->GetBossState(DATA_EREDAR_TWINS_INTRO) != DONE)
+            {
+                instance->SetBossState(DATA_EREDAR_TWINS_INTRO, DONE);
+                if (Creature* creature = ObjectAccessor::GetCreature(*player, instance->GetGuidData(NPC_LADY_SACROLASH)))
+                    creature->AI()->Talk(YELL_INTRO_SAC);
+                if (Creature* creature = ObjectAccessor::GetCreature(*player, instance->GetGuidData(NPC_GRAND_WARLOCK_ALYTHESS)))
+                    creature->AI()->Talk(YELL_INTRO_ALY);
+            }
 
-        bool OnTrigger(Player* player, AreaTrigger const* /*trigger*/)
-        {
-            if (InstanceScript* instance = player->GetInstanceScript())
-                if (instance->GetBossState(DATA_EREDAR_TWINS_INTRO) != DONE)
-                {
-                    instance->SetBossState(DATA_EREDAR_TWINS_INTRO, DONE);
-                    if (Creature* creature = ObjectAccessor::GetCreature(*player, instance->GetData64(NPC_LADY_SACROLASH)))
-                        creature->AI()->Talk(YELL_INTRO_SAC);
-                    if (Creature* creature = ObjectAccessor::GetCreature(*player, instance->GetData64(NPC_GRAND_WARLOCK_ALYTHESS)))
-                        creature->AI()->Talk(YELL_INTRO_ALY);
-                }
-
-            return true;
-        }
+        return true;
+    }
 };
 
 void AddSC_boss_eredar_twins()
 {
     new boss_sacrolash();
     new boss_alythess();
-    new spell_eredar_twins_apply_dark_touched();
-    new spell_eredar_twins_apply_flame_touched();
-    new spell_eredar_twins_handle_touch();
-    new spell_eredar_twins_blaze();
+    RegisterSpellScript(spell_eredar_twins_apply_dark_touched);
+    RegisterSpellScript(spell_eredar_twins_apply_flame_touched);
+    RegisterSpellScript(spell_eredar_twins_handle_touch);
+    RegisterSpellScript(spell_eredar_twins_blaze);
     new AreaTrigger_at_sunwell_eredar_twins();
 }
+
